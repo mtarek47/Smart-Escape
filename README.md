@@ -8,16 +8,14 @@
 
 | Field | Value |
 |---|---|
-| **Full Name** | [Your Full Name] |
-| **Registration Number** | [Your Registration Number] |
+| **Full Name** | Md Tarek Rahman |
+| **Registration Number** | 242-15-882 |
 
 ---
 
 ## 🔗 Live Demo
 
-[https://your-live-link-here.example.com](https://your-live-link-here.example.com)
-
-*(Replace with your deployed URL on GitHub Pages / Vercel / Netlify)*
+[https://mtarek47.github.io/Smart-Escape/](https://mtarek47.github.io/Smart-Escape/)
 
 ---
 
