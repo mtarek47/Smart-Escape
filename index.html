@@ -3,995 +3,766 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Smart Escape — Interactive Evacuation Route Simulator</title>
-<meta name="description" content="Interactive building evacuation route simulator with real-time pathfinding.">
+<title>Smart Escape 🏃 — Evacuation Route Simulator</title>
 <style>
-/* ── Tokens ─────────────────────────────────────────────────────────────── */
+/* ─── Design Tokens ──────────────────────────────────────────────────────── */
 :root {
-  --bg:      #f0f4f8;
-  --surface: #ffffff;
-  --surface2:#f7f9fb;
-  --border:  #d1dce8;
-  --ink:     #1a2532;
-  --ink2:    #4a5e72;
-  --ink3:    #8097ad;
-  --accent:  #2563eb;
-  --room:    #2563eb;
-  --junc:    #64748b;
-  --exit:    #059669;
-  --bad:     #dc2626;
-  --route:   #ea580c;
-  --sel-ring:#1e3a5f;
-  --shadow:  0 1px 3px rgba(0,0,0,.10), 0 4px 12px rgba(0,0,0,.06);
-  --shadow-lg:0 4px 16px rgba(0,0,0,.12), 0 8px 32px rgba(0,0,0,.08);
-  --r4: 4px; --r8: 8px; --r12: 12px;
-  color-scheme: light;
+  --bg:      #0d1117;
+  --surf:    #161b22;
+  --surf2:   #21262d;
+  --border:  #30363d;
+  --ink:     #e6edf3;
+  --ink2:    #8b949e;
+  --room:    #1d6fdb;
+  --junc:    #586069;
+  --exit:    #238636;
+  --bad:     #da3633;
+  --route:   #e05c00;
+  --gold:    #ffd700;
+  --glow-r:  rgba(224,92,0,.55);
+  --glow-g:  rgba(35,134,54,.55);
+  --glow-b:  rgba(218,54,51,.55);
+  --glow-y:  rgba(255,215,0,.55);
+  --grid:    rgba(255,255,255,.035);
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg:#0f1923; --surface:#17212e; --surface2:#1e2d3d;
-    --border:#243344; --ink:#e2eaf2; --ink2:#96afc4; --ink3:#56748d;
-    --accent:#3b82f6; --room:#3b82f6; --junc:#7b8fa3; --exit:#34d399;
-    --bad:#f87171; --route:#fb923c; --sel-ring:#93c5fd;
-    --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 12px rgba(0,0,0,.3);
-    --shadow-lg:0 4px 16px rgba(0,0,0,.5),0 8px 32px rgba(0,0,0,.4);
-    color-scheme: dark; }
+[data-theme="light"] {
+  --bg:#f0f4f8; --surf:#ffffff; --surf2:#e8ecf2; --border:#d0d7de;
+  --ink:#1c2128; --ink2:#57606a; --room:#1565c0; --junc:#546e7a;
+  --exit:#1b7327; --bad:#b91c1c; --route:#c2410c; --gold:#d97706;
+  --glow-r:rgba(194,65,12,.35); --glow-g:rgba(27,115,39,.35);
+  --glow-b:rgba(185,28,28,.35); --glow-y:rgba(217,119,6,.35);
+  --grid:rgba(0,0,0,.05); color-scheme: light;
 }
-[data-theme="dark"] { --bg:#0f1923; --surface:#17212e; --surface2:#1e2d3d;
-  --border:#243344; --ink:#e2eaf2; --ink2:#96afc4; --ink3:#56748d;
-  --accent:#3b82f6; --room:#3b82f6; --junc:#7b8fa3; --exit:#34d399;
-  --bad:#f87171; --route:#fb923c; --sel-ring:#93c5fd;
-  --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 12px rgba(0,0,0,.3);
-  --shadow-lg:0 4px 16px rgba(0,0,0,.5),0 8px 32px rgba(0,0,0,.4);
-  color-scheme: dark; }
-[data-theme="light"] { color-scheme: light; }
+@media(prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#f0f4f8; --surf:#ffffff; --surf2:#e8ecf2; --border:#d0d7de;
+  --ink:#1c2128; --ink2:#57606a; --room:#1565c0; --junc:#546e7a;
+  --exit:#1b7327; --bad:#b91c1c; --route:#c2410c; --gold:#d97706;
+  --glow-r:rgba(194,65,12,.35); --glow-g:rgba(27,115,39,.35);
+  --glow-b:rgba(185,28,28,.35); --glow-y:rgba(217,119,6,.35);
+  --grid:rgba(0,0,0,.05); color-scheme: light;
+}}
 
-/* ── Reset / Base ───────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-padding-top: env(safe-area-inset-top, 0px); font-size: 16px; }
-body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: "Inter", "Segoe UI", "Noto Sans Bengali", "Helvetica Neue", Arial, sans-serif;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  min-height: 100dvh;
+/* ─── Reset ──────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Segoe UI","Noto Sans Bengali",system-ui,sans-serif;
+  min-height:100dvh; line-height:1.45;
 }
 
-/* ── Typography ─────────────────────────────────────────────────────────── */
-h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
-h2 { font-size: 0.875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink2); }
-h3 { font-size: 0.9375rem; font-weight: 600; }
-
-/* ── Layout ─────────────────────────────────────────────────────────────── */
-header {
-  display: flex; flex-wrap: wrap; gap: 0.5rem;
-  align-items: center; justify-content: space-between;
-  padding: 0.75rem 1.25rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 0 rgba(0,0,0,.06);
-  position: sticky; top: 0; z-index: 100;
+/* ─── Game Title ─────────────────────────────────────────────────────────── */
+.game-logo{
+  font-size:1.4rem; font-weight:900; letter-spacing:.01em;
+  background:linear-gradient(130deg,var(--route) 0%,var(--gold) 100%);
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 14px var(--glow-r));
 }
-.header-title { display: flex; flex-direction: column; gap: 0.125rem; }
-.header-title small { font-size: 0.75rem; font-weight: 400; color: var(--ink2); }
-.header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.game-sub{font-size:.7rem;color:var(--ink2);font-weight:500;margin-top:.1rem}
 
-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 22rem;
-  gap: 1rem;
-  padding: 1rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-@media (max-width: 900px) {
-  main { grid-template-columns: 1fr; }
+/* ─── Header / HUD ───────────────────────────────────────────────────────── */
+header{
+  display:flex; flex-wrap:wrap; gap:.625rem;
+  align-items:center; justify-content:space-between;
+  padding:.625rem 1.25rem;
+  background:var(--surf);
+  border-bottom:2px solid var(--border);
+  position:sticky; top:0; z-index:100;
+  box-shadow:0 4px 20px rgba(0,0,0,.45);
 }
 
-/* ── Cards ──────────────────────────────────────────────────────────────── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r12);
-  box-shadow: var(--shadow);
-  padding: 1rem;
+/* ─── Layout ─────────────────────────────────────────────────────────────── */
+main{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 21rem;
+  gap:1rem; padding:1rem;
+  max-width:1280px; margin:0 auto;
 }
-.card-header {
-  display: flex; flex-wrap: wrap; gap: 0.5rem;
-  align-items: center; justify-content: space-between;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-.card-header .bname {
-  font-size: 0.875rem; font-weight: 600; color: var(--ink);
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 999px; padding: 0.125rem 0.625rem;
-  display: none;
-}
-.card-header .bname.visible { display: inline-block; }
-.mode-btns { display: flex; gap: 0.375rem; }
+@media(max-width:900px){main{grid-template-columns:1fr}}
 
-/* ── Buttons ────────────────────────────────────────────────────────────── */
-button, .btn-file {
-  display: inline-flex; align-items: center; gap: 0.375rem;
-  font: inherit; font-size: 0.875rem; font-weight: 500;
-  padding: 0.4rem 0.875rem;
-  border: 1px solid var(--border);
-  border-radius: var(--r8);
-  background: var(--surface);
-  color: var(--ink);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
-  white-space: nowrap;
-  text-decoration: none;
-  -webkit-user-select: none; user-select: none;
+/* ─── Panels ─────────────────────────────────────────────────────────────── */
+.panel{
+  background:var(--surf);
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.25);
 }
-button:hover, .btn-file:hover {
-  background: var(--surface2);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-button:focus-visible, .btn-file:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-button[aria-pressed="true"] {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
-}
-button.btn-danger { border-color: color-mix(in srgb, var(--bad) 40%, var(--border)); }
-button.btn-danger:hover { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--surface)); }
-
-/* icon-only buttons (lang, theme) */
-.btn-icon {
-  padding: 0.4rem 0.6rem;
-  font-size: 1rem;
-  line-height: 1;
+.panel-header{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;
+  justify-content:space-between;
+  padding:.625rem 1rem;
+  border-bottom:1px solid var(--border);
 }
 
-/* ── Error banner ───────────────────────────────────────────────────────── */
-#err {
-  display: none;
-  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--bad) 50%, transparent);
-  border-left: 4px solid var(--bad);
-  border-radius: var(--r8);
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-  white-space: pre-line;
-  font-size: 0.875rem;
-  color: var(--bad);
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+button,.btn-file{
+  display:inline-flex; align-items:center; gap:.3rem;
+  font:inherit; font-size:.8rem; font-weight:700;
+  letter-spacing:.03em;
+  padding:.38rem .8rem;
+  border:1px solid var(--border); border-radius:8px;
+  background:var(--surf2); color:var(--ink);
+  cursor:pointer; white-space:nowrap;
+  text-decoration:none; -webkit-user-select:none; user-select:none;
+  position:relative; top:0;
+  box-shadow:0 3px 0 rgba(0,0,0,.4),0 1px 4px rgba(0,0,0,.25);
+  transition:background .12s,border-color .12s,box-shadow .12s,top .08s,color .12s;
 }
-#err strong { display: block; margin-bottom: 0.25rem; }
+button:hover,.btn-file:hover{
+  background:var(--border); border-color:var(--route); color:var(--route);
+  box-shadow:0 3px 0 rgba(0,0,0,.4),0 0 14px var(--glow-r);
+}
+button:active,.btn-file:active{top:3px;box-shadow:0 0 0 rgba(0,0,0,.4),0 0 6px var(--glow-r)}
+button:focus-visible,.btn-file:focus-visible{outline:3px solid var(--route);outline-offset:2px}
+button[aria-pressed="true"]{
+  background:var(--route); color:#fff; border-color:var(--route);
+  box-shadow:0 3px 0 rgba(0,0,0,.4),0 0 18px var(--glow-r);
+}
+.btn-icon{padding:.38rem .6rem;font-size:1rem}
+.btn-danger:hover{border-color:var(--bad);color:var(--bad);box-shadow:0 3px 0 rgba(0,0,0,.4),0 0 14px var(--glow-b)}
+.mode-row{display:flex;gap:.375rem}
 
-/* ── Map area ───────────────────────────────────────────────────────────── */
-#mapwrap {
-  overflow: auto;
-  border-radius: var(--r8);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-}
-svg#map {
-  width: 100%; height: auto;
-  max-height: 68vh;
-  display: block;
-  touch-action: manipulation;
-}
-
-/* ── SVG / Edge styles ──────────────────────────────────────────────────── */
-.edge line.vis {
-  stroke: var(--border);
-  stroke-width: 3;
-  stroke-linecap: round;
-  transition: stroke 0.2s, stroke-width 0.2s, opacity 0.2s;
-}
-.edge line.hit {
-  stroke: transparent;
-  stroke-width: 24;
-  cursor: pointer;
-}
-.edge.blocked line.vis {
-  stroke: var(--bad);
-  stroke-dasharray: 4 6;
-  stroke-width: 2.5;
-  opacity: 0.8;
-}
-.edge.route line.vis {
-  stroke: var(--route);
-  stroke-width: 6;
-  stroke-dasharray: 12 6;
-  animation: flow 0.9s linear infinite;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--route) 50%, transparent));
-}
-@keyframes flow { to { stroke-dashoffset: -18; } }
-
-.edge .cost-bg {
-  fill: var(--surface);
-  stroke: var(--border);
-  stroke-width: 1;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,.08));
-}
-.edge.route .cost-bg { fill: color-mix(in srgb, var(--route) 12%, var(--surface)); stroke: var(--route); }
-.edge.blocked .cost-bg { fill: color-mix(in srgb, var(--bad) 10%, var(--surface)); stroke: var(--bad); }
-.edge text {
-  font-size: 11px; font-weight: 600;
-  fill: var(--ink2);
-  text-anchor: middle; dominant-baseline: central;
-  pointer-events: none;
-}
-.edge.route text { fill: var(--route); }
-.edge.blocked text { fill: var(--bad); }
-
-/* ── SVG / Node styles ──────────────────────────────────────────────────── */
-.node { cursor: pointer; }
-.node circle, .node rect {
-  stroke: var(--surface);
-  stroke-width: 3;
-  transition: fill 0.2s, stroke 0.2s, stroke-width 0.2s, r 0.2s, filter 0.2s;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.node.room circle { fill: var(--room); }
-.node.junction circle { fill: var(--junc); }
-.node.exit rect  { fill: var(--exit); stroke: var(--surface); }
-
-/* Labels */
-.node .id-text {
-  font-size: 10px; font-weight: 700;
-  fill: #fff;
-  text-anchor: middle; dominant-baseline: central;
-  pointer-events: none;
-  paint-order: stroke;
-  stroke: rgba(0,0,0,.2);
-  stroke-width: 2px;
-}
-.node .label-text {
-  font-size: 11px; font-weight: 600;
-  fill: var(--ink2);
-  text-anchor: middle; dominant-baseline: central;
-  pointer-events: none;
-  paint-order: stroke;
-  stroke: var(--surface);
-  stroke-width: 5px;
+/* ─── Error ──────────────────────────────────────────────────────────────── */
+#err{
+  display:none;
+  background:color-mix(in srgb,var(--bad) 10%,var(--surf));
+  border:1px solid var(--bad);border-left:4px solid var(--bad);
+  border-radius:8px; padding:.625rem .875rem;
+  margin-bottom:.75rem; white-space:pre-line;
+  font-size:.825rem; color:var(--bad);
 }
 
-/* States */
-.node.blocked circle, .node.blocked rect { fill: var(--bad); }
-.node.closed  rect  { fill: var(--bad); opacity: 0.75; }
-.node.blocked .id-text, .node.closed .id-text { text-decoration: line-through; }
+/* ─── Map ────────────────────────────────────────────────────────────────── */
+#mapwrap{
+  border-radius:8px; overflow:auto;
+  background-color:var(--surf2);
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:30px 30px;
+  border:1px solid var(--border);
+}
+svg#map{width:100%;height:auto;max-height:70vh;display:block;touch-action:manipulation}
 
-.node.onroute circle, .node.onroute rect {
-  stroke: var(--route);
-  stroke-width: 4;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--route) 60%, transparent));
+/* ─── Edges ──────────────────────────────────────────────────────────────── */
+.edge line.vis{
+  stroke:var(--border); stroke-width:3.5; stroke-linecap:round;
+  transition:stroke .2s,stroke-width .2s,filter .2s;
 }
-.node.start circle, .node.start rect {
-  stroke: var(--sel-ring);
-  stroke-width: 5;
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sel-ring) 55%, transparent));
+.edge line.hit{stroke:transparent;stroke-width:28;cursor:pointer}
+.edge.blocked line.vis{stroke:var(--bad);stroke-dasharray:4 7;stroke-width:3;opacity:.9}
+.edge.route line.vis{
+  stroke:var(--route);stroke-width:7;stroke-dasharray:14 6;
+  animation:flow .75s linear infinite;
+  filter:drop-shadow(0 0 7px var(--glow-r));
 }
-/* start overrides onroute stroke */
-.node.start.onroute circle, .node.start.onroute rect {
-  stroke: var(--sel-ring);
-  stroke-width: 5;
-}
+@keyframes flow{to{stroke-dashoffset:-20}}
+.edge .cost-bg{fill:var(--surf);stroke:var(--border);stroke-width:1;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.3))}
+.edge.route  .cost-bg{fill:color-mix(in srgb,var(--route) 18%,var(--surf));stroke:var(--route)}
+.edge.blocked .cost-bg{fill:color-mix(in srgb,var(--bad) 12%,var(--surf));stroke:var(--bad)}
+.edge text{font-size:11px;font-weight:700;fill:var(--ink2);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.edge.route  text{fill:var(--route)}
+.edge.blocked text{fill:var(--bad)}
 
-/* Animations */
-.node.pulse circle, .node.pulse rect { animation: pop 0.3s ease-out; }
-@keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.25)} 100%{transform:scale(1)} }
+/* ─── Nodes ──────────────────────────────────────────────────────────────── */
+.node{cursor:pointer}
+.node circle,.node rect{
+  stroke:var(--surf); stroke-width:3;
+  transition:fill .2s,stroke .2s,stroke-width .2s,filter .2s;
+  transform-box:fill-box; transform-origin:center;
+}
+.node.room    circle{fill:var(--room)}
+.node.junction circle{fill:var(--junc)}
+.node.exit    rect  {fill:var(--exit);stroke:var(--surf)}
+.node.blocked circle,.node.blocked rect{fill:var(--bad)}
+.node.closed  rect  {fill:var(--bad);opacity:.8}
 
-.node:focus-visible { outline: none; }
-.node:focus-visible circle, .node:focus-visible rect { stroke: var(--accent); stroke-width: 5; }
+.node.onroute circle,.node.onroute rect{
+  stroke:var(--route);stroke-width:5;
+  filter:drop-shadow(0 0 9px var(--glow-r));
+}
+.node.start circle,.node.start rect{
+  stroke:var(--gold);stroke-width:5;
+  animation:start-pulse 1.6s ease-in-out infinite;
+}
+@keyframes start-pulse{
+  0%,100%{filter:drop-shadow(0 0 6px var(--glow-y))}
+  50%    {filter:drop-shadow(0 0 20px rgba(255,215,0,.9))}
+}
+.node.start.onroute circle,.node.start.onroute rect{stroke:var(--gold);stroke-width:5}
 
-/* Hazard mode cursor */
-body.haz-mode .node { cursor: crosshair; }
-body.haz-mode .edge line.hit { cursor: crosshair; }
-
-/* ── Tip bar ────────────────────────────────────────────────────────────── */
-#tip {
-  font-size: 0.8125rem; color: var(--ink2);
-  margin-top: 0.625rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--r8);
-  display: flex; align-items: center; gap: 0.5rem;
+/* node labels */
+.id-lbl{
+  font-size:10.5px;font-weight:800;fill:rgba(255,255,255,.97);
+  text-anchor:middle;dominant-baseline:central;pointer-events:none;
+  paint-order:stroke;stroke:rgba(0,0,0,.4);stroke-width:3px;
 }
-#tip::before { content: "ℹ"; font-size: 0.875rem; color: var(--accent); flex-shrink: 0; }
-
-/* ── Result panel ───────────────────────────────────────────────────────── */
-#res {
-  font-size: 0.9375rem;
-  min-height: 5rem;
-}
-.res-inner {
-  border-radius: var(--r8);
-  padding: 0.875rem 1rem;
-  transition: background 0.2s, border-color 0.2s;
-}
-.res-inner.ok   { background: color-mix(in srgb, var(--exit) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--exit) 30%, transparent); border-left: 4px solid var(--exit); }
-.res-inner.fail { background: color-mix(in srgb, var(--bad) 8%, var(--surface));  border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);  border-left: 4px solid var(--bad); }
-.res-inner.info { background: color-mix(in srgb, var(--junc) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--junc) 30%, transparent); border-left: 4px solid var(--junc); }
-
-.cost-display { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; margin-bottom: 0.5rem; }
-.cost-display.ok-color { color: var(--exit); }
-.cost-label { font-size: 0.75rem; font-weight: 500; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.06em; }
-
-.exit-badge {
-  display: inline-flex; align-items: center; gap: 0.25rem;
-  background: color-mix(in srgb, var(--exit) 15%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--exit) 30%, transparent);
-  color: var(--exit);
-  font-size: 0.8125rem; font-weight: 600;
-  border-radius: 999px;
-  padding: 0.125rem 0.625rem;
-  margin-bottom: 0.625rem;
-}
-
-.path-label { font-size: 0.75rem; font-weight: 600; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.375rem; }
-.path {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem;
-}
-.path .step {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--r4);
-  padding: 0.125rem 0.5rem;
-  font-size: 0.8125rem; font-weight: 700;
-  color: var(--ink);
-  transition: background 0.15s, border-color 0.15s;
-}
-.path .step.is-exit {
-  background: color-mix(in srgb, var(--exit) 12%, var(--surface));
-  border-color: color-mix(in srgb, var(--exit) 30%, transparent);
-  color: var(--exit);
-}
-.path .step.is-start {
-  background: color-mix(in srgb, var(--sel-ring) 12%, var(--surface));
-  border-color: color-mix(in srgb, var(--sel-ring) 30%, transparent);
-  color: var(--sel-ring);
-}
-.path .arrow { color: var(--route); font-weight: 700; font-size: 0.875rem; }
-
-.res-msg { font-size: 1rem; font-weight: 700; }
-.res-msg.fail-color { color: var(--bad); }
-.res-msg.info-color { color: var(--ink2); }
-
-/* ── Legend ─────────────────────────────────────────────────────────────── */
-.legend-grid { display: grid; gap: 0.5rem; font-size: 0.8125rem; }
-.legend-item { display: flex; align-items: center; gap: 0.625rem; color: var(--ink2); }
-.legend-swatch {
-  flex-shrink: 0;
-  width: 1.125rem; height: 1.125rem;
-  border-radius: 50%;
-}
-.legend-swatch.square { border-radius: var(--r4); }
-.legend-swatch.dashed { background: transparent !important; border: 2px dashed var(--bad); border-radius: var(--r4); }
-.legend-swatch.route-line {
-  background: transparent !important;
-  border: 3px solid var(--route);
-  border-radius: 999px;
-  height: 0.25rem;
-  border-radius: 999px;
-  margin-top: 0.5rem;
-}
-.legend-swatch.ring-start {
-  background: transparent !important;
-  border: 3px solid var(--sel-ring);
-  border-radius: 50%;
+.name-lbl{
+  font-size:10px;font-weight:600;fill:var(--ink2);
+  text-anchor:middle;dominant-baseline:central;pointer-events:none;
+  paint-order:stroke;stroke:var(--surf);stroke-width:5px;
 }
 
-/* ── Side panel ─────────────────────────────────────────────────────────── */
-.side { display: grid; gap: 1rem; align-content: start; }
+/* ─── Cartoon Runner (above start node) ──────────────────────────────────── */
+.runner-fig{display:none;transform-box:fill-box;transform-origin:bottom center;pointer-events:none}
+.node.start .runner-fig{display:block;animation:game-bob .45s ease-in-out infinite alternate}
+@keyframes game-bob{from{transform:translateY(0)}to{transform:translateY(-8px)}}
 
-/* ── Divider ────────────────────────────────────────────────────────────── */
-.divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; }
+/* ─── Flame (on blocked / closed nodes) ──────────────────────────────────── */
+.flame-fig{display:none;pointer-events:none}
+.node.blocked .flame-fig,.node.closed .flame-fig{display:block}
+.fl-o{animation:fl1 .22s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:bottom center}
+.fl-m{animation:fl2 .18s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:bottom center}
+@keyframes fl1{from{transform:scaleX(1)    scaleY(1)    rotate(-6deg)}to{transform:scaleX(.83) scaleY(1.14) rotate(6deg)}}
+@keyframes fl2{from{transform:scaleX(1)    scaleY(1)    rotate(5deg) }to{transform:scaleX(.87) scaleY(1.1)  rotate(-5deg)}}
 
-/* ── Stats row ──────────────────────────────────────────────────────────── */
-.stats-row { display: flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.75rem; color: var(--ink3); margin-top: 0.5rem; }
-.stats-row span { display: flex; align-items: center; gap: 0.25rem; }
+/* pulse on click */
+.node.pulse circle,.node.pulse rect{animation:pop .3s ease-out}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.3)}100%{transform:scale(1)}}
+.node:focus-visible{outline:none}
+.node:focus-visible circle,.node:focus-visible rect{stroke:var(--gold);stroke-width:5}
 
-/* ── Reduced motion ─────────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
+/* hazard cursor */
+body.haz-mode .node,.body.haz-mode .edge line.hit{cursor:crosshair}
+body.haz-mode .edge line.hit{cursor:crosshair}
+
+/* ─── Tip bar ────────────────────────────────────────────────────────────── */
+#tip{
+  font-size:.775rem;color:var(--ink2);margin-top:.625rem;
+  padding:.45rem .75rem;
+  background:var(--surf2);border:1px solid var(--border);border-radius:8px;
+  display:flex;align-items:center;gap:.375rem;
+}
+#tip::before{content:"ℹ";color:var(--route);font-size:.85rem;flex-shrink:0}
+
+/* ─── Side / Result ──────────────────────────────────────────────────────── */
+.side{display:grid;gap:1rem;align-content:start}
+#res{font-size:.9375rem;min-height:5rem}
+
+.res-card{border-radius:10px;overflow:hidden}
+.res-card.ok  {border:1px solid color-mix(in srgb,var(--exit) 50%,var(--border));background:color-mix(in srgb,var(--exit) 9%,var(--surf))}
+.res-card.fail{border:1px solid color-mix(in srgb,var(--bad)  50%,var(--border));background:color-mix(in srgb,var(--bad)  9%,var(--surf))}
+.res-card.info{border:1px solid var(--border);background:var(--surf)}
+
+.res-hd{padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid rgba(255,255,255,.06)}
+.res-icon{font-size:1.9rem;line-height:1}
+.res-title{font-size:1.05rem;font-weight:900;letter-spacing:.01em}
+.res-title.ok-c  {color:var(--exit)}
+.res-title.fail-c{color:var(--bad)}
+.res-title.info-c{color:var(--ink2)}
+.res-body{padding:.7rem 1rem}
+.cost-row{display:flex;align-items:baseline;gap:.45rem;margin-bottom:.55rem}
+.cost-num{font-size:2.4rem;font-weight:900;letter-spacing:-.03em;color:var(--gold);line-height:1;font-variant-numeric:tabular-nums}
+.cost-unit{font-size:.7rem;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.08em}
+.exit-tag{
+  display:inline-flex;align-items:center;gap:.25rem;
+  background:color-mix(in srgb,var(--exit) 15%,var(--surf));
+  border:1px solid color-mix(in srgb,var(--exit) 35%,transparent);
+  color:var(--exit);font-size:.775rem;font-weight:700;
+  border-radius:999px;padding:.1rem .6rem;margin-bottom:.55rem;
+}
+.path-lbl{font-size:.65rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2);margin-bottom:.35rem}
+.path-chips{display:flex;flex-wrap:wrap;align-items:center;gap:.2rem}
+.chip{font-size:.72rem;font-weight:800;padding:.12rem .45rem;border-radius:4px;border:1px solid var(--border);background:var(--surf2);color:var(--ink)}
+.chip.s-chip{background:color-mix(in srgb,var(--gold) 18%,var(--surf));border-color:color-mix(in srgb,var(--gold) 40%,var(--border));color:var(--gold)}
+.chip.e-chip{background:color-mix(in srgb,var(--exit) 18%,var(--surf));border-color:color-mix(in srgb,var(--exit) 40%,var(--border));color:var(--exit)}
+.chip.r-chip{background:color-mix(in srgb,var(--route) 14%,var(--surf));border-color:color-mix(in srgb,var(--route) 40%,var(--border));color:var(--route)}
+.arr{color:var(--route);font-weight:900;font-size:.8rem}
+.res-msg{font-size:.95rem;font-weight:700}
+
+/* ─── Legend ─────────────────────────────────────────────────────────────── */
+.leg-grid{display:grid;gap:.4rem}
+.leg-item{display:flex;align-items:center;gap:.55rem;font-size:.775rem;color:var(--ink2);line-height:1.3}
+.ld{width:1rem;height:1rem;border-radius:50%;flex-shrink:0}
+.ld.sq{border-radius:4px}
+.ld.dash{background:transparent!important;border:2px dashed var(--bad)}
+.ld.rl{background:transparent!important;border:3px solid var(--route);height:.2rem;border-radius:999px;margin-top:.4rem}
+.ld.sr{background:transparent!important;border:3px solid var(--gold)}
+
+/* ─── Bname pill + stats ──────────────────────────────────────────────────── */
+.bname{
+  font-size:.775rem;font-weight:700;
+  background:color-mix(in srgb,var(--route) 14%,var(--surf2));
+  border:1px solid color-mix(in srgb,var(--route) 28%,var(--border));
+  color:var(--route);border-radius:999px;padding:.1rem .7rem;
+  display:none;
+}
+.bname.on{display:inline-block}
+.stats{font-size:.68rem;color:var(--ink2);display:flex;gap:.6rem;flex-wrap:wrap}
+
+/* ─── Reduced Motion ─────────────────────────────────────────────────────── */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
 }
 </style>
 </head>
 <body>
 
 <header role="banner">
-  <div class="header-title">
-    <h1 id="t_title">Smart Escape</h1>
-    <small id="t_sub"></small>
+  <div>
+    <div class="game-logo">🏃 SMART ESCAPE</div>
+    <div class="game-sub" id="t_sub"></div>
   </div>
-  <nav class="header-actions" aria-label="Controls">
+  <nav style="display:flex;flex-wrap:wrap;gap:.45rem;align-items:center" aria-label="Controls">
     <label class="btn-file" tabindex="0" id="importLabel">
-      <svg width="14" height="14" fill="none" viewBox="0 0 16 16" aria-hidden="true"><path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 5l3-3 3 3"/></svg>
+      <svg width="13" height="13" fill="none" viewBox="0 0 16 16" aria-hidden="true"><path stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 5l3-3 3 3"/></svg>
       <span id="t_import"></span>
       <input id="file" type="file" accept=".json,application/json" hidden aria-hidden="true">
     </label>
-    <button id="sample" type="button">
-      <svg width="14" height="14" fill="none" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
-      <span id="t_sample"></span>
-    </button>
-    <button id="reset" type="button" class="btn-danger">
-      <svg width="14" height="14" fill="none" viewBox="0 0 16 16" aria-hidden="true"><path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M3 8a5 5 0 105.5-4.97M3 3.5V8h4.5"/></svg>
-      <span id="t_reset"></span>
-    </button>
-    <button id="lang" type="button" class="btn-icon" aria-label="Toggle language"></button>
-    <button id="theme" type="button" class="btn-icon" aria-label="Toggle dark mode" title="Toggle theme">🌙</button>
+    <button id="sample" type="button"><span id="t_sample"></span></button>
+    <button id="reset"  type="button" class="btn-danger"><span id="t_reset"></span></button>
+    <button id="lang"   type="button" class="btn-icon" aria-label="Toggle language"></button>
+    <button id="theme"  type="button" class="btn-icon" title="Toggle theme"></button>
   </nav>
 </header>
 
 <main>
-  <!-- Map column -->
   <section aria-label="Building map">
     <div id="err" role="alert" aria-live="assertive"></div>
-    <div class="card">
-      <div class="card-header">
-        <span class="bname" id="bname" aria-label="Building name"></span>
-        <div class="mode-btns" role="group" aria-label="Mode">
-          <button id="mStart" type="button" aria-pressed="true"></button>
-          <button id="mHaz" type="button" aria-pressed="false"></button>
+    <div class="panel">
+      <div class="panel-header">
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span class="bname" id="bname"></span>
+          <div class="stats" id="stats" aria-live="polite"></div>
         </div>
-        <div class="stats-row" id="stats" aria-live="polite"></div>
+        <div class="mode-row" role="group" aria-label="Mode">
+          <button id="mStart" type="button" aria-pressed="true"></button>
+          <button id="mHaz"   type="button" aria-pressed="false"></button>
+        </div>
       </div>
-      <div id="mapwrap">
-        <svg id="map" role="img" aria-label="Building evacuation map"></svg>
+      <div style="padding:.75rem">
+        <div id="mapwrap">
+          <svg id="map" role="img" aria-label="Building evacuation map"></svg>
+        </div>
+        <p id="tip" role="status" aria-live="polite"></p>
       </div>
-      <p id="tip" role="status" aria-live="polite"></p>
     </div>
   </section>
 
-  <!-- Side column -->
   <aside class="side" aria-label="Results and legend">
-    <div class="card" id="res" aria-live="polite" aria-atomic="true"></div>
-    <div class="card">
-      <div style="margin-bottom:0.75rem"><h2 id="t_leg"></h2></div>
-      <div class="legend-grid" id="leg" role="list"></div>
+    <div class="panel" id="res" aria-live="polite" aria-atomic="true"></div>
+    <div class="panel" style="padding:1rem">
+      <h2 style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);margin-bottom:.6rem" id="t_leg"></h2>
+      <div class="leg-grid" id="leg" role="list"></div>
     </div>
   </aside>
 </main>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════════════════
-   SAMPLE DATA
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════ SAMPLE DATA ═══════════════════ */
 const SAMPLE = {
-  building: "Sample Building",
-  nodes: [
-    { id:"R1", label:"Room 1",    type:"room",     x:80,  y:80  },
-    { id:"R2", label:"Room 2",    type:"room",     x:80,  y:240 },
-    { id:"C1", label:"Junc. 1",   type:"junction", x:240, y:80  },
-    { id:"C2", label:"Junc. 2",   type:"junction", x:400, y:80  },
-    { id:"C3", label:"Junc. 3",   type:"junction", x:240, y:240 },
-    { id:"C4", label:"Junc. 4",   type:"junction", x:400, y:240 },
-    { id:"E1", label:"Exit 1",    type:"exit",     x:560, y:80  },
-    { id:"E2", label:"Exit 2",    type:"exit",     x:560, y:240 }
+  building:"Sample Building",
+  nodes:[
+    {id:"R1",label:"Room 1",  type:"room",    x:80, y:80 },
+    {id:"R2",label:"Room 2",  type:"room",    x:80, y:240},
+    {id:"C1",label:"Junc. 1",type:"junction",x:240,y:80 },
+    {id:"C2",label:"Junc. 2",type:"junction",x:400,y:80 },
+    {id:"C3",label:"Junc. 3",type:"junction",x:240,y:240},
+    {id:"C4",label:"Junc. 4",type:"junction",x:400,y:240},
+    {id:"E1",label:"Exit 1",  type:"exit",    x:560,y:80 },
+    {id:"E2",label:"Exit 2",  type:"exit",    x:560,y:240}
   ],
-  edges: [
-    { id:"e1", from:"R1", to:"C1", cost:2 },
-    { id:"e2", from:"C1", to:"C2", cost:2 },
-    { id:"e3", from:"C2", to:"E1", cost:3 },
-    { id:"e4", from:"R1", to:"R2", cost:4 },
-    { id:"e5", from:"C1", to:"C3", cost:3 },
-    { id:"e6", from:"C2", to:"C4", cost:5 },
-    { id:"e7", from:"R2", to:"C3", cost:1 },
-    { id:"e8", from:"C3", to:"C4", cost:3 },
-    { id:"e9", from:"C4", to:"E2", cost:3 }
+  edges:[
+    {id:"e1",from:"R1",to:"C1",cost:2},{id:"e2",from:"C1",to:"C2",cost:2},
+    {id:"e3",from:"C2",to:"E1",cost:3},{id:"e4",from:"R1",to:"R2",cost:4},
+    {id:"e5",from:"C1",to:"C3",cost:3},{id:"e6",from:"C2",to:"C4",cost:5},
+    {id:"e7",from:"R2",to:"C3",cost:1},{id:"e8",from:"C3",to:"C4",cost:3},
+    {id:"e9",from:"C4",to:"E2",cost:3}
   ],
-  initial_state: { blocked_nodes:[], blocked_edges:[], closed_exits:[] }
+  initial_state:{blocked_nodes:[],blocked_edges:[],closed_exits:[]}
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   TRANSLATIONS
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════ TRANSLATIONS ══════════════════ */
 const LANG = {
-  en: {
+  en:{
     sub:"Interactive Evacuation Route Simulator",
-    imp:"Import JSON", sample:"Load Sample", reset:"Reset", lang:"বাংলা",
-    mStart:"Choose Start", mHaz:"Change Hazards",
+    imp:"Import JSON",sample:"🗺 Load Sample",reset:"↺ Reset",lang:"বাংলা",
+    mStart:"🎯 Choose Start",mHaz:"⚠ Hazards",
     tipStart:"Click a room or junction to set your starting location.",
-    tipHaz:"Click a room/junction to block it · click a corridor to block it · click an exit to close it. Click again to undo.",
-    leg:"Legend", room:"Room", junction:"Junction", exit:"Exit",
-    blockedN:"Blocked room / junction", closedE:"Closed exit",
-    blockedC:"Blocked corridor", route:"Active route", start:"Start node",
+    tipHaz:"Click a room/junction to block · a corridor to block it · an exit to close. Click again to undo.",
+    leg:"Legend",room:"Room",junction:"Junction",exit:"Exit",
+    blockedN:"Blocked room / junction",closedE:"Closed exit",
+    blockedC:"Blocked corridor",route:"Active route",start:"Start node",
     pick:"Select a starting room or junction.",
-    noRoute:"No route available",
-    startBlocked:"Starting location blocked",
-    exitL:"Exit", cost:"Total cost", routeLabel:"Route",
+    noRoute:"No route available",startBlocked:"Starting location blocked",
+    exitL:"Exit",cost:"Total cost",routeLabel:"Route",
     errTitle:"Cannot load file:",
-    bad_json:"The file is not valid JSON.",
-    bad_root:"Top-level must be an object.",
+    bad_json:"The file is not valid JSON.",bad_root:"Top-level must be an object.",
     bad_building:'"building" must be a non-empty string.',
     bad_nodes:'"nodes" must be an array of 2–60 items.',
     bad_edges:'"edges" must be an array of 1–150 items.',
-    bad_node: n=>`Node #${n}: needs a unique string id, non-empty label, type room/junction/exit, and numeric x, y.`,
-    dup_node: n=>`Duplicate node id "${n}".`,
-    bad_edge: n=>`Edge #${n}: needs a unique string id and a positive integer cost.`,
-    dup_edge: n=>`Duplicate edge id "${n}".`,
-    edge_ref: n=>`Edge "${n}" refers to an unknown node.`,
-    loop:     n=>`Edge "${n}" is a self-loop.`,
-    pair:     n=>`Edge "${n}" repeats an existing node pair.`,
+    bad_node:n=>`Node #${n}: needs unique id, non-empty label, type room/junction/exit, numeric x,y.`,
+    dup_node:n=>`Duplicate node id "${n}".`,
+    bad_edge:n=>`Edge #${n}: needs unique id and a positive integer cost.`,
+    dup_edge:n=>`Duplicate edge id "${n}".`,
+    edge_ref:n=>`Edge "${n}" refers to an unknown node.`,
+    loop:n=>`Edge "${n}" is a self-loop.`,pair:n=>`Edge "${n}" repeats an existing node pair.`,
     need_types:"Need at least one room/junction and at least one exit.",
-    bad_state:'"initial_state" must contain arrays blocked_nodes, blocked_edges, and closed_exits.',
-    st_bn: n=>`blocked_nodes: "${n}" is not an existing room/junction.`,
-    st_be: n=>`blocked_edges: "${n}" is not an existing edge.`,
-    st_ce: n=>`closed_exits: "${n}" is not an existing exit.`,
-    loaded:"Loaded",
-    nodes_count: n=>`${n} nodes`,
-    edges_count: n=>`${n} edges`,
+    bad_state:'"initial_state" must contain arrays blocked_nodes, blocked_edges, closed_exits.',
+    st_bn:n=>`blocked_nodes: "${n}" is not an existing room/junction.`,
+    st_be:n=>`blocked_edges: "${n}" is not an existing edge.`,
+    st_ce:n=>`closed_exits: "${n}" is not an existing exit.`,
+    loaded:"Loaded",nc:n=>`${n} nodes`,ec:n=>`${n} edges`,
+    escaped:"ESCAPED! 🎉",danger:"DANGER! 🔥",no_route:"NO ROUTE 💀",waiting:"READY… 🧭"
   },
-  bn: {
+  bn:{
     sub:"ইন্টারঅ্যাক্টিভ উদ্ধার-পথ সিমুলেটর",
-    imp:"JSON আমদানি", sample:"নমুনা লোড", reset:"রিসেট", lang:"English",
-    mStart:"শুরু বেছে নিন", mHaz:"বিপদ পরিবর্তন",
+    imp:"JSON আমদানি",sample:"🗺 নমুনা লোড",reset:"↺ রিসেট",lang:"English",
+    mStart:"🎯 শুরু বেছে নিন",mHaz:"⚠ বিপদ",
     tipStart:"শুরুর স্থান নির্ধারণ করতে কোনো রুম বা জংশনে ক্লিক করুন।",
-    tipHaz:"রুম/জংশনে ক্লিক করলে বন্ধ হবে · করিডোরে ক্লিক করলে বন্ধ হবে · এক্সিটে ক্লিক করলে বন্ধ হবে। আবার ক্লিক করলে খুলবে।",
-    leg:"নির্দেশিকা", room:"রুম", junction:"জংশন", exit:"এক্সিট",
-    blockedN:"বন্ধ রুম / জংশন", closedE:"বন্ধ এক্সিট",
-    blockedC:"বন্ধ করিডোর", route:"সক্রিয় পথ", start:"শুরু নোড",
+    tipHaz:"রুম/জংশনে ক্লিক করলে বন্ধ হবে · করিডোরে ক্লিক করলে বন্ধ · এক্সিটে ক্লিক করলে বন্ধ। আবার ক্লিক করলে খুলবে।",
+    leg:"নির্দেশিকা",room:"রুম",junction:"জংশন",exit:"এক্সিট",
+    blockedN:"বন্ধ রুম / জংশন",closedE:"বন্ধ এক্সিট",
+    blockedC:"বন্ধ করিডোর",route:"সক্রিয় পথ",start:"শুরু নোড",
     pick:"একটি শুরুর রুম বা জংশন নির্বাচন করুন।",
-    noRoute:"কোনো পথ নেই",
-    startBlocked:"শুরুর স্থান বন্ধ",
-    exitL:"এক্সিট", cost:"মোট খরচ", routeLabel:"পথ",
+    noRoute:"কোনো পথ নেই",startBlocked:"শুরুর স্থান বন্ধ",
+    exitL:"এক্সিট",cost:"মোট খরচ",routeLabel:"পথ",
     errTitle:"ফাইল লোড করা যায়নি:",
-    bad_json:"ফাইলটি সঠিক JSON নয়।",
-    bad_root:"সবার উপরের অংশ অবশ্যই একটি অবজেক্ট হতে হবে।",
+    bad_json:"ফাইলটি সঠিক JSON নয়।",bad_root:"সবার উপরের অংশ অবশ্যই একটি অবজেক্ট হতে হবে।",
     bad_building:'"building" অবশ্যই অ-খালি স্ট্রিং হতে হবে।',
     bad_nodes:'"nodes" অবশ্যই ২–৬০টি আইটেমের অ্যারে হতে হবে।',
     bad_edges:'"edges" অবশ্যই ১–১৫০টি আইটেমের অ্যারে হতে হবে।',
-    bad_node: n=>`নোড #${n}: অনন্য স্ট্রিং id, অ-খালি label, type (room/junction/exit) এবং সংখ্যাসূচক x, y দরকার।`,
-    dup_node: n=>`নোড id "${n}" পুনরাবৃত্ত হয়েছে।`,
-    bad_edge: n=>`এজ #${n}: অনন্য স্ট্রিং id এবং ধনাত্মক পূর্ণসংখ্যার cost দরকার।`,
-    dup_edge: n=>`এজ id "${n}" পুনরাবৃত্ত হয়েছে।`,
-    edge_ref: n=>`এজ "${n}" অজানা নোড উল্লেখ করেছে।`,
-    loop:     n=>`এজ "${n}" নিজেকেই যুক্ত করেছে (self-loop)।`,
-    pair:     n=>`এজ "${n}" একই নোড জোড়া পুনরায় ব্যবহার করেছে।`,
+    bad_node:n=>`নোড #${n}: অনন্য id, অ-খালি label, type (room/junction/exit) এবং সংখ্যাসূচক x,y দরকার।`,
+    dup_node:n=>`নোড id "${n}" পুনরাবৃত্ত হয়েছে।`,
+    bad_edge:n=>`এজ #${n}: অনন্য id এবং ধনাত্মক পূর্ণসংখ্যার cost দরকার।`,
+    dup_edge:n=>`এজ id "${n}" পুনরাবৃত্ত হয়েছে।`,
+    edge_ref:n=>`এজ "${n}" অজানা নোড উল্লেখ করেছে।`,
+    loop:n=>`এজ "${n}" নিজেকেই যুক্ত করেছে।`,pair:n=>`এজ "${n}" একই নোড জোড়া পুনরায় ব্যবহার করেছে।`,
     need_types:"কমপক্ষে একটি রুম/জংশন এবং একটি এক্সিট দরকার।",
     bad_state:'"initial_state"-এ blocked_nodes, blocked_edges ও closed_exits অ্যারে থাকতে হবে।',
-    st_bn: n=>`blocked_nodes: "${n}" কোনো বিদ্যমান রুম/জংশন নয়।`,
-    st_be: n=>`blocked_edges: "${n}" কোনো বিদ্যমান এজ নয়।`,
-    st_ce: n=>`closed_exits: "${n}" কোনো বিদ্যমান এক্সিট নয়।`,
-    loaded:"লোড হয়েছে",
-    nodes_count: n=>`${n}টি নোড`,
-    edges_count: n=>`${n}টি এজ`,
+    st_bn:n=>`blocked_nodes: "${n}" কোনো বিদ্যমান রুম/জংশন নয়।`,
+    st_be:n=>`blocked_edges: "${n}" কোনো বিদ্যমান এজ নয়।`,
+    st_ce:n=>`closed_exits: "${n}" কোনো বিদ্যমান এক্সিট নয়।`,
+    loaded:"লোড হয়েছে",nc:n=>`${n}টি নোড`,ec:n=>`${n}টি এজ`,
+    escaped:"পালিয়েছে! 🎉",danger:"বিপদ! 🔥",no_route:"কোনো পথ নেই 💀",waiting:"অপেক্ষায়… 🧭"
   }
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   APP STATE
-   ═══════════════════════════════════════════════════════════════════════════ */
-let lang = "en";
-let mode = "start";         // "start" | "haz"
-let D    = null;            // loaded dataset (validated)
-let bN   = new Set();       // blocked node ids
-let bE   = new Set();       // blocked edge ids
-let cX   = new Set();       // closed exit ids
-let start= null;            // selected start node id
-let lastErr = null;         // cached error list for re-render
+/* ════════════════════════════════════════ STATE ═════════════════════════ */
+let lang="en",mode="start",D=null;
+let bN=new Set(),bE=new Set(),cX=new Set(),start=null,lastErr=null;
+const $=id=>document.getElementById(id), t=k=>LANG[lang][k], NS="http://www.w3.org/2000/svg";
 
-const $ = id => document.getElementById(id);
-const t = k  => LANG[lang][k];
-const NS = "http://www.w3.org/2000/svg";
+/* ════════════════════════════════════════ VALIDATION ════════════════════ */
+function validate(d){
+  const E=[],push=(k,a)=>E.push([k,a]);
+  if(!d||typeof d!=="object"||Array.isArray(d))return[["bad_root"]];
+  if(typeof d.building!=="string"||!d.building.trim())push("bad_building");
+  if(!Array.isArray(d.nodes)||d.nodes.length<2||d.nodes.length>60){push("bad_nodes");return E}
+  if(!Array.isArray(d.edges)||d.edges.length<1||d.edges.length>150){push("bad_edges");return E}
+  const ids=new Map();
+  d.nodes.forEach((n,i)=>{
+    const ok=n&&typeof n.id==="string"&&n.id&&typeof n.label==="string"&&n.label.trim()&&
+      ["room","junction","exit"].includes(n.type)&&Number.isFinite(n.x)&&Number.isFinite(n.y);
+    if(!ok){push("bad_node",i+1);return}
+    if(ids.has(n.id))push("dup_node",n.id);else ids.set(n.id,n)});
+  const eids=new Map(),pairs=new Set();
+  d.edges.forEach((e,i)=>{
+    if(!e||typeof e.id!=="string"||!e.id||!Number.isInteger(e.cost)||e.cost<=0){push("bad_edge",i+1);return}
+    if(eids.has(e.id)){push("dup_edge",e.id);return}eids.set(e.id,e);
+    if(!ids.has(e.from)||!ids.has(e.to)){push("edge_ref",e.id);return}
+    if(e.from===e.to){push("loop",e.id);return}
+    const pk=[e.from,e.to].sort().join("\0");if(pairs.has(pk))push("pair",e.id);pairs.add(pk)});
+  const types=[...ids.values()].map(n=>n.type);
+  if(!types.includes("exit")||!types.some(x=>x!=="exit"))push("need_types");
+  const s=d.initial_state;
+  if(!s||!["blocked_nodes","blocked_edges","closed_exits"].every(k=>Array.isArray(s[k])))push("bad_state");
+  else{
+    s.blocked_nodes.forEach(id=>{const n=ids.get(id);if(!n||n.type==="exit")push("st_bn",id)});
+    s.blocked_edges.forEach(id=>{if(!eids.has(id))push("st_be",id)});
+    s.closed_exits.forEach(id=>{const n=ids.get(id);if(!n||n.type!=="exit")push("st_ce",id)})}
+  return E}
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   VALIDATION
-   ═══════════════════════════════════════════════════════════════════════════ */
-function validate(d) {
-  const E = [], push = (k, a) => E.push([k, a]);
-  if (!d || typeof d !== "object" || Array.isArray(d)) return [["bad_root"]];
-  if (typeof d.building !== "string" || !d.building.trim()) push("bad_building");
-  if (!Array.isArray(d.nodes) || d.nodes.length < 2 || d.nodes.length > 60) { push("bad_nodes"); return E; }
-  if (!Array.isArray(d.edges) || d.edges.length < 1 || d.edges.length > 150) { push("bad_edges"); return E; }
+/* ════════════════════════════════════════ ROUTING ═══════════════════════ */
+function dijkstra(adj,src){
+  const dist=new Map([[src,0]]),done=new Set();
+  for(;;){
+    let u=null,best=Infinity;
+    for(const[k,v]of dist)if(!done.has(k)&&v<best){best=v;u=k}
+    if(u===null)return dist;done.add(u);
+    for(const[v,c]of(adj.get(u)||[])){const nd=best+c;if(!dist.has(v)||nd<dist.get(v))dist.set(v,nd)}}}
 
-  const ids = new Map();
-  d.nodes.forEach((n, i) => {
-    const ok = n && typeof n.id === "string" && n.id &&
-               typeof n.label === "string" && n.label.trim() &&
-               ["room","junction","exit"].includes(n.type) &&
-               Number.isFinite(n.x) && Number.isFinite(n.y);
-    if (!ok) { push("bad_node", i+1); return; }
-    if (ids.has(n.id)) push("dup_node", n.id);
-    else ids.set(n.id, n);
-  });
+function computeRoute(){
+  if(!D||!start)return{status:"none"};
+  if(bN.has(start))return{status:"startBlocked"};
+  const adj=new Map(D.nodes.map(n=>[n.id,[]]));
+  D.edges.forEach(e=>{
+    if(bE.has(e.id)||bN.has(e.from)||bN.has(e.to)||cX.has(e.from)||cX.has(e.to))return;
+    adj.get(e.from).push([e.to,e.cost]);adj.get(e.to).push([e.from,e.cost])});
+  const dS=dijkstra(adj,start);
+  let best=null;
+  D.nodes.filter(n=>n.type==="exit"&&!cX.has(n.id)&&dS.has(n.id)).forEach(n=>{
+    const c=dS.get(n.id);if(!best||c<best.c||(c===best.c&&n.id<best.id))best={id:n.id,c}});
+  if(!best)return{status:"noRoute"};
+  const dE=dijkstra(adj,best.id),path=[start];let cur=start;
+  const MAX=D.nodes.length+1;let steps=0;
+  while(cur!==best.id&&steps++<MAX){
+    const cands=(adj.get(cur)||[]).filter(([v,c])=>dE.has(v)&&c+dE.get(v)===dE.get(cur)).map(([v])=>v).sort();
+    if(!cands.length)return{status:"noRoute"};path.push(cands[0]);cur=cands[0]}
+  return{status:"ok",exit:best.id,cost:best.c,path}}
 
-  const eids = new Map(), pairs = new Set();
-  d.edges.forEach((e, i) => {
-    if (!e || typeof e.id !== "string" || !e.id ||
-        !Number.isInteger(e.cost) || e.cost <= 0) { push("bad_edge", i+1); return; }
-    if (eids.has(e.id)) { push("dup_edge", e.id); return; }
-    eids.set(e.id, e);
-    if (!ids.has(e.from) || !ids.has(e.to)) { push("edge_ref", e.id); return; }
-    if (e.from === e.to) { push("loop", e.id); return; }
-    const pk = [e.from, e.to].sort().join("\0");
-    if (pairs.has(pk)) push("pair", e.id);
-    pairs.add(pk);
-  });
+/* ════════════════════════════════════════ SVG HELPERS ═══════════════════ */
+const els={nodes:new Map(),edges:new Map()};
+function m(tag,a,p){const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e}
 
-  const types = [...ids.values()].map(n => n.type);
-  if (!types.includes("exit") || !types.some(x => x !== "exit")) push("need_types");
+/* cute bobbing runner above the node — centered at (cx, nodeTopY) */
+function addRunner(parent,cx,cy){
+  /* cy = node center Y; figure floats starting nodeRadius above */
+  const ry=cy-28;   // feet level (≈ top of node)
+  const hy=ry-32;   // head center
+  const fig=m("g",{class:"runner-fig"},parent);
 
-  const s = d.initial_state;
-  if (!s || !["blocked_nodes","blocked_edges","closed_exits"].every(k => Array.isArray(s[k]))) {
-    push("bad_state");
-  } else {
-    s.blocked_nodes.forEach(id => { const n = ids.get(id); if (!n || n.type === "exit") push("st_bn", id); });
-    s.blocked_edges.forEach(id => { if (!eids.has(id)) push("st_be", id); });
-    s.closed_exits.forEach(id  => { const n = ids.get(id); if (!n || n.type !== "exit") push("st_ce", id); });
-  }
-  return E;
+  // Shadow under feet
+  m("ellipse",{cx,cy:ry+2,rx:9,ry:2.5,fill:"rgba(0,0,0,.3)"},fig);
+  // Left leg (back)
+  m("line",{x1:cx-1,y1:ry-8,x2:cx-7,y2:ry+1,stroke:"#1565c0","stroke-width":"5","stroke-linecap":"round"},fig);
+  // Right leg (forward)
+  m("line",{x1:cx+1,y1:ry-8,x2:cx+7,y2:ry+1,stroke:"#1565c0","stroke-width":"5","stroke-linecap":"round"},fig);
+  // Body (hi-vis jacket)
+  m("rect",{x:cx-7,y:ry-20,width:14,height:13,rx:3,fill:"#ff6b35"},fig);
+  // Safety stripe on jacket
+  m("rect",{x:cx-7,y:ry-15,width:14,height:2.5,rx:1,fill:"rgba(255,220,0,.7)"},fig);
+  // Left arm — swinging back
+  m("line",{x1:cx-7,y1:ry-17,x2:cx-14,y2:ry-9,stroke:"#FFD700","stroke-width":"4","stroke-linecap":"round"},fig);
+  // Right arm — pumping forward
+  m("line",{x1:cx+7,y1:ry-17,x2:cx+13,y2:ry-24,stroke:"#FFD700","stroke-width":"4","stroke-linecap":"round"},fig);
+  // Neck
+  m("line",{x1:cx,y1:ry-20,x2:cx,y2:hy+9,stroke:"#FFD700","stroke-width":"4","stroke-linecap":"round"},fig);
+  // Head
+  m("circle",{cx,cy:hy,r:10,fill:"#FFD700",stroke:"#E07B00","stroke-width":"2"},fig);
+  // Helmet / hard hat
+  m("rect",{x:cx-10,y:hy-12,width:20,height:5.5,rx:2.5,fill:"#e53935"},fig);
+  m("rect",{x:cx-7, y:hy-17,width:14,height:7, rx:3.5,fill:"#e53935"},fig);
+  m("rect",{x:cx-3, y:hy-18,width:6, height:3, rx:1.5,fill:"#ffcdd2"},fig); // vent
+  // Eyes
+  m("circle",{cx:cx-3.5,cy:hy-1,r:2,fill:"white"},fig);
+  m("circle",{cx:cx+3.5,cy:hy-1,r:2,fill:"white"},fig);
+  m("circle",{cx:cx-3,  cy:hy-1,r:1.1,fill:"#222"},fig);
+  m("circle",{cx:cx+4,  cy:hy-1,r:1.1,fill:"#222"},fig);
+  // Smile
+  m("path",{d:`M${cx-3},${hy+3} Q${cx},${hy+6} ${cx+3},${hy+3}`,stroke:"#222","stroke-width":"1.4",fill:"none","stroke-linecap":"round"},fig);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   ROUTING — Dijkstra + lex-smallest path reconstruction
-   ═══════════════════════════════════════════════════════════════════════════ */
-function dijkstra(adj, src) {
-  const dist = new Map([[src, 0]]), done = new Set();
-  for (;;) {
-    let u = null, best = Infinity;
-    for (const [k, v] of dist) if (!done.has(k) && v < best) { best = v; u = k; }
-    if (u === null) return dist;
-    done.add(u);
-    for (const [v, c] of (adj.get(u) || [])) {
-      const nd = best + c;
-      if (!dist.has(v) || nd < dist.get(v)) dist.set(v, nd);
-    }
-  }
+/* animated flame over blocked nodes */
+function addFlame(parent,cx,cy){
+  const fig=m("g",{class:"flame-fig"},parent);
+  const fy=cy+4; // base of flame at node center+4
+  const fo=m("ellipse",{cx,cy:fy-16,rx:11,ry:15,fill:"#ff4500",opacity:".93"},fig);
+  fo.classList.add("fl-o");
+  const fm=m("ellipse",{cx,cy:fy-13,rx:7.5,ry:10.5,fill:"#ff8c00",opacity:".96"},fig);
+  fm.classList.add("fl-m");
+  m("ellipse",{cx,cy:fy-10,rx:4.5,ry:6.5,fill:"#FFD700"},fig);
+  // sparks
+  m("circle",{cx:cx-11,cy:fy-25,r:2.2,fill:"#ff8c00",opacity:".65"},fig);
+  m("circle",{cx:cx+10, cy:fy-22,r:1.7,fill:"#FFD700",  opacity:".75"},fig);
+  m("circle",{cx:cx-4,  cy:fy-29,r:1.5,fill:"#ff6600",  opacity:".6"},fig);
 }
 
-function computeRoute() {
-  if (!D || !start) return { status: "none" };
-  if (bN.has(start)) return { status: "startBlocked" };
-
-  // Build adjacency: exclude blocked nodes, blocked edges, closed exits (never as intermediate)
-  const adj = new Map(D.nodes.map(n => [n.id, []]));
-  D.edges.forEach(e => {
-    if (bE.has(e.id)) return;
-    if (bN.has(e.from) || bN.has(e.to)) return;
-    if (cX.has(e.from) || cX.has(e.to)) return;
-    adj.get(e.from).push([e.to, e.cost]);
-    adj.get(e.to).push([e.from, e.cost]);
-  });
-
-  const dS = dijkstra(adj, start);
-
-  // Pick the open exit with minimum cost; break ties by lex-smallest exit id
-  let best = null;
-  D.nodes
-    .filter(n => n.type === "exit" && !cX.has(n.id) && dS.has(n.id))
-    .forEach(n => {
-      const c = dS.get(n.id);
-      if (!best || c < best.c || (c === best.c && n.id < best.id))
-        best = { id: n.id, c };
-    });
-
-  if (!best) return { status: "noRoute" };
-
-  // Reconstruct lex-smallest node-sequence path from start to best exit.
-  // Run Dijkstra backward from the exit, then greedily pick the lex-smallest
-  // neighbor at each step that lies on a shortest path.
-  const dE = dijkstra(adj, best.id);
-  const path = [start];
-  let cur = start;
-  const MAX_STEPS = D.nodes.length + 1;
-  let steps = 0;
-  while (cur !== best.id && steps++ < MAX_STEPS) {
-    const candidates = (adj.get(cur) || [])
-      .filter(([v, c]) => dE.has(v) && c + dE.get(v) === dE.get(cur))
-      .map(([v]) => v)
-      .sort();
-    if (candidates.length === 0) return { status: "noRoute" }; // defensive
-    const nx = candidates[0];
-    path.push(nx);
-    cur = nx;
-  }
-  return { status: "ok", exit: best.id, cost: best.c, path };
+/* exit sign arrow + tiny running person icon */
+function addExitIcon(parent,cx,cy){
+  // arrow right
+  m("path",{d:`M${cx-7},${cy} L${cx+5},${cy} M${cx+2},${cy-4} L${cx+5},${cy} L${cx+2},${cy+4}`,
+    stroke:"rgba(255,255,255,.75)","stroke-width":"2.5","stroke-linecap":"round","stroke-linejoin":"round",fill:"none"},parent);
+  // tiny ISO running person (left of arrow)
+  m("circle",{cx:cx-11,cy:cy-6,r:2.8,fill:"rgba(255,255,255,.7)"},parent);
+  m("line",{x1:cx-11,y1:cy-3,x2:cx-11,y2:cy+4,stroke:"rgba(255,255,255,.7)","stroke-width":"2.5","stroke-linecap":"round"},parent);
+  m("line",{x1:cx-11,y1:cy+4,x2:cx-14,y2:cy+9,stroke:"rgba(255,255,255,.7)","stroke-width":"2","stroke-linecap":"round"},parent);
+  m("line",{x1:cx-11,y1:cy+4,x2:cx-8, y2:cy+9,stroke:"rgba(255,255,255,.7)","stroke-width":"2","stroke-linecap":"round"},parent);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   SVG MAP
-   ═══════════════════════════════════════════════════════════════════════════ */
-const els = { nodes: new Map(), edges: new Map() };
+/* small door icon inside room nodes */
+function addRoomIcon(parent,cx,cy){
+  m("path",{d:`M${cx-7},${cy+8} L${cx-7},${cy-5} Q${cx-7},${cy-9} ${cx-3},${cy-9} L${cx+3},${cy-9} Q${cx+7},${cy-9} ${cx+7},${cy-5} L${cx+7},${cy+8}`,
+    fill:"rgba(255,255,255,.15)",stroke:"rgba(255,255,255,.35)","stroke-width":"1.4","stroke-linejoin":"round"},parent);
+  m("circle",{cx:cx+5,cy,r:1.6,fill:"rgba(255,255,255,.5)"},parent);
+}
 
-function buildMap() {
-  const svg = $("map");
-  svg.innerHTML = "";
-  els.nodes.clear();
-  els.edges.clear();
+/* crossroads icon inside junction nodes */
+function addJuncIcon(parent,cx,cy){
+  m("line",{x1:cx,y1:cy-9,x2:cx,y2:cy+9,stroke:"rgba(255,255,255,.3)","stroke-width":"2.5","stroke-linecap":"round"},parent);
+  m("line",{x1:cx-9,y1:cy,x2:cx+9,y2:cy,stroke:"rgba(255,255,255,.3)","stroke-width":"2.5","stroke-linecap":"round"},parent);
+  // small arrows
+  m("path",{d:`M${cx-2},${cy-7} L${cx},${cy-10} L${cx+2},${cy-7}`,fill:"rgba(255,255,255,.25)"},parent);
+  m("path",{d:`M${cx+7},${cy-2} L${cx+10},${cy} L${cx+7},${cy+2}`,fill:"rgba(255,255,255,.25)"},parent);
+}
 
-  const xs  = D.nodes.map(n => n.x), ys = D.nodes.map(n => n.y);
-  const pad = 64;
-  const x0  = Math.min(...xs), y0 = Math.min(...ys);
-  const rw  = Math.max(...xs) - x0 || 1;
-  const rh  = Math.max(...ys) - y0 || 1;
-  const s   = Math.min(780/rw, 440/rh, 2.5);
-  const W   = rw*s + pad*2, H = rh*s + pad*2;
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+/* ════════════════════════════════════════ BUILD MAP ════════════════════ */
+function buildMap(){
+  const svg=$("map"); svg.innerHTML=""; els.nodes.clear(); els.edges.clear();
+  const xs=D.nodes.map(n=>n.x),ys=D.nodes.map(n=>n.y);
+  const PX=70,PYT=90,PYB=55;
+  const x0=Math.min(...xs),y0=Math.min(...ys);
+  const rw=Math.max(...xs)-x0||1,rh=Math.max(...ys)-y0||1;
+  const s=Math.min(760/rw,420/rh,2.5);
+  const W=rw*s+PX*2, H=rh*s+PYT+PYB;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const P=n=>[(n.x-x0)*s+PX,(n.y-y0)*s+PYT];
+  const byId=new Map(D.nodes.map(n=>[n.id,n]));
+  const gE=m("g",{},svg),gN=m("g",{},svg);
 
-  const P     = n => [(n.x - x0)*s + pad, (n.y - y0)*s + pad];
-  const byId  = new Map(D.nodes.map(n => [n.id, n]));
-  const mk    = (tag, attrs, parent) => {
-    const el = document.createElementNS(NS, tag);
-    for (const k in attrs) el.setAttribute(k, attrs[k]);
-    if (parent) parent.appendChild(el);
-    return el;
-  };
+  // ── Edges
+  D.edges.forEach(e=>{
+    const[a,b]=[P(byId.get(e.from)),P(byId.get(e.to))];
+    const g=m("g",{class:"edge"},gE);
+    m("line",{class:"vis",x1:a[0],y1:a[1],x2:b[0],y2:b[1]},g);
+    const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,lw=String(e.cost).length*7+16;
+    m("rect",{class:"cost-bg",x:mx-lw/2,y:my-9,width:lw,height:18,rx:5},g);
+    m("text",{x:mx,y:my},g).textContent=e.cost;
+    const hit=m("line",{class:"hit",x1:a[0],y1:a[1],x2:b[0],y2:b[1]},g);
+    hit.addEventListener("click",()=>{if(mode==="haz"){tog(bE,e.id);upd()}});
+    m("title",{},g).textContent=`${e.id}: ${e.from}–${e.to}  cost ${e.cost}`;
+    els.edges.set(e.id,g)});
 
-  const gEdges = mk("g", {}, svg);
-  const gNodes = mk("g", {}, svg);
-
-  // Draw edges
-  D.edges.forEach(e => {
-    const [a, b] = [P(byId.get(e.from)), P(byId.get(e.to))];
-    const g = mk("g", { class:"edge" }, gEdges);
-    mk("line", { class:"vis", x1:a[0], y1:a[1], x2:b[0], y2:b[1] }, g);
-    const mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
-    const lbl = String(e.cost);
-    const tw  = lbl.length * 7 + 12;
-    mk("rect",  { class:"cost-bg", x:mx-tw/2, y:my-9, width:tw, height:18, rx:5 }, g);
-    mk("text",  { x:mx, y:my }, g).textContent = lbl;
-    const hit = mk("line", { class:"hit", x1:a[0], y1:a[1], x2:b[0], y2:b[1] }, g);
-    hit.addEventListener("click", () => { if (mode === "haz") { toggle(bE, e.id); runUpdate(); } });
-    mk("title", {}, g).textContent = `${e.id}: ${e.from}–${e.to} (cost ${e.cost})`;
-    els.edges.set(e.id, g);
-  });
-
-  // Draw nodes
-  D.nodes.forEach(n => {
-    const [x, y] = P(n);
-    const g = mk("g", { class:`node ${n.type}`, tabindex:"0", role:"button", "aria-label":n.label }, gNodes);
-
-    if (n.type === "exit") {
-      mk("rect",  { x:x-18, y:y-18, width:36, height:36, rx:8 }, g);
+  // ── Nodes
+  D.nodes.forEach(n=>{
+    const[x,y]=P(n);
+    const R=21;
+    const g=m("g",{class:`node ${n.type}`,tabindex:"0",role:"button","aria-label":`${n.label} (${n.type})`},gN);
+    if(n.type==="exit"){
+      m("rect",{x:x-R,y:y-R,width:R*2,height:R*2,rx:9},g);
+      addExitIcon(g,x,y);
     } else {
-      mk("circle", { cx:x, cy:y, r:18 }, g);
+      m("circle",{cx:x,cy:y,r:R},g);
+      if(n.type==="room")   addRoomIcon(g,x,y);
+      else                   addJuncIcon(g,x,y);
     }
+    // ID text inside node
+    m("text",{class:"id-lbl",x,y:y+1},g).textContent=n.id;
+    // Label below
+    m("text",{class:"name-lbl",x,y:y+R+14},g).textContent=n.label;
+    m("title",{},g).textContent=`${n.id} — ${n.label} (${n.type})`;
 
-    // ID inside the node
-    mk("text", { class:"id-text", x, y }, g).textContent = n.id;
-    // Label below the node
-    mk("text", { class:"label-text", x, y:y+30 }, g).textContent = n.label;
-    mk("title", {}, g).textContent = `${n.id} (${n.type}): ${n.label}`;
+    // cartoon runner (CSS shows when .start)
+    addRunner(g,x,y);
+    // flame (CSS shows when .blocked or .closed)
+    addFlame(g,x,y);
 
-    const act = () => {
-      // Pulse animation
-      g.classList.remove("pulse");
-      void g.getBoundingClientRect();
-      g.classList.add("pulse");
-      if (mode === "haz") {
-        toggle(n.type === "exit" ? cX : bN, n.id);
-      } else {
-        if (n.type !== "exit") start = n.id;
-      }
-      runUpdate();
-    };
-    g.addEventListener("click", act);
-    g.addEventListener("keydown", ev => {
-      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); act(); }
-    });
-    els.nodes.set(n.id, g);
-  });
+    const act=()=>{
+      g.classList.remove("pulse");void g.getBoundingClientRect();g.classList.add("pulse");
+      if(mode==="haz"){tog(n.type==="exit"?cX:bN,n.id)}
+      else if(n.type!=="exit"){start=n.id}
+      upd()};
+    g.addEventListener("click",act);
+    g.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();act()}});
+    els.nodes.set(n.id,g)})
 }
 
-function toggle(set, id) {
-  set.has(id) ? set.delete(id) : set.add(id);
-}
+function tog(set,id){set.has(id)?set.delete(id):set.add(id)}
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   UPDATE — recalculate route and refresh UI
-   ═══════════════════════════════════════════════════════════════════════════ */
-function runUpdate() {
-  const r = computeRoute();
-  const onPath = new Set(r.path || []);
-  const pathEdges = new Set();
-  if (r.path) {
-    for (let i = 0; i < r.path.length - 1; i++) {
-      pathEdges.add([r.path[i], r.path[i+1]].sort().join("|"));
-    }
-  }
+/* ════════════════════════════════════════ UPDATE ═══════════════════════ */
+function upd(){
+  const r=computeRoute();
+  const onPath=new Set(r.path||[]),pe=new Set();
+  if(r.path)for(let i=0;i<r.path.length-1;i++)pe.add([r.path[i],r.path[i+1]].sort().join("|"));
+  D.edges.forEach(e=>{const g=els.edges.get(e.id);
+    const isB=bE.has(e.id)||bN.has(e.from)||bN.has(e.to);
+    g.classList.toggle("blocked",isB);
+    g.classList.toggle("route",pe.has([e.from,e.to].sort().join("|"))&&!isB)});
+  D.nodes.forEach(n=>{const g=els.nodes.get(n.id);
+    g.classList.toggle("blocked",bN.has(n.id));
+    g.classList.toggle("closed",cX.has(n.id));
+    g.classList.toggle("start",n.id===start);
+    g.classList.toggle("onroute",onPath.has(n.id))});
+  renderRes(r)}
 
-  D.edges.forEach(e => {
-    const g = els.edges.get(e.id);
-    const isBlocked = bE.has(e.id) || bN.has(e.from) || bN.has(e.to);
-    const isRoute   = pathEdges.has([e.from, e.to].sort().join("|"));
-    g.classList.toggle("blocked", isBlocked);
-    g.classList.toggle("route",   isRoute && !isBlocked);
-  });
+/* ════════════════════════════════════════ RESULT PANEL ═════════════════ */
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 
-  D.nodes.forEach(n => {
-    const g = els.nodes.get(n.id);
-    g.classList.toggle("blocked", bN.has(n.id));
-    g.classList.toggle("closed",  cX.has(n.id));
-    g.classList.toggle("start",   n.id === start);
-    g.classList.toggle("onroute", onPath.has(n.id));
-  });
-
-  renderResult(r);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   RENDER RESULT PANEL
-   ═══════════════════════════════════════════════════════════════════════════ */
-function renderResult(r) {
-  const el = $("res");
-  if (r.status === "ok") {
-    const pathHTML = r.path.map((p, i) => {
-      const cls = p === start ? "is-start" : (i === r.path.length-1 ? "is-exit" : "");
-      return `<span class="step ${cls}">${esc(p)}</span>${i < r.path.length-1 ? '<span class="arrow">→</span>' : ""}`;
-    }).join("");
-    el.innerHTML = `<div class="res-inner ok">
-      <div class="exit-badge">✓ ${esc(t("exitL"))}: ${esc(r.exit)}</div>
-      <div class="cost-label">${esc(t("cost"))}</div>
-      <div class="cost-display ok-color">${r.cost}</div>
-      <hr class="divider">
-      <div class="path-label">${esc(t("routeLabel"))}</div>
-      <div class="path">${pathHTML}</div>
-    </div>`;
+function renderRes(r){
+  const el=$("res");
+  if(r.status==="ok"){
+    const chips=r.path.map((p,i)=>{
+      const cls=p===start?"s-chip":i===r.path.length-1?"e-chip":"r-chip";
+      return`<span class="chip ${cls}">${esc(p)}</span>${i<r.path.length-1?'<span class="arr">▶</span>':""}`}).join("");
+    el.innerHTML=`<div class="res-card ok">
+      <div class="res-hd"><span class="res-icon">🏃</span><span class="res-title ok-c">${esc(t("escaped"))}</span></div>
+      <div class="res-body">
+        <div class="cost-row"><span class="cost-num">${r.cost}</span><span class="cost-unit">${esc(t("cost"))}</span></div>
+        <div class="exit-tag">🚪 ${esc(t("exitL"))}: <b>${esc(r.exit)}</b></div>
+        <div class="path-lbl">${esc(t("routeLabel"))}</div>
+        <div class="path-chips">${chips}</div>
+      </div></div>`;
+  } else if(r.status==="startBlocked"){
+    el.innerHTML=`<div class="res-card fail"><div class="res-hd"><span class="res-icon">🔥</span><span class="res-title fail-c">${esc(t("startBlocked"))}</span></div></div>`;
+  } else if(r.status==="noRoute"){
+    el.innerHTML=`<div class="res-card fail"><div class="res-hd"><span class="res-icon">🚫</span><span class="res-title fail-c">${esc(t("noRoute"))}</span></div></div>`;
   } else {
-    const msg = r.status === "startBlocked" ? t("startBlocked")
-              : r.status === "noRoute"       ? t("noRoute")
-              : t("pick");
-    const cls = r.status === "none" ? "info" : "fail";
-    const msgCls = r.status === "none" ? "info-color" : "fail-color";
-    el.innerHTML = `<div class="res-inner ${cls}">
-      <div class="res-msg ${msgCls}">${esc(msg)}</div>
-    </div>`;
+    el.innerHTML=`<div class="res-card info"><div class="res-hd"><span class="res-icon">🧭</span><span class="res-title info-c">${esc(t("pick"))}</span></div></div>`;
   }
 }
 
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
+/* ════════════════════════════════════════ LOAD ═════════════════════════ */
+function setErr(list){lastErr=list;showErr()}
+function showErr(){const b=$("err");if(!lastErr){b.style.display="none";return}
+  b.style.display="block";
+  const lines=lastErr.map(([k,a])=>{const v=t(k);return"• "+(typeof v==="function"?v(a):v)}).join("\n");
+  b.innerHTML=`<strong>${esc(t("errTitle"))}</strong>\n${esc(lines)}`}
+function load(d){
+  const e=validate(d);if(e.length){setErr(e);return}
+  setErr(null);D=d;start=null;mode="start";buildMap();applyInit();renderTxt()}
+function applyInit(){
+  const s=D.initial_state;bN=new Set(s.blocked_nodes);bE=new Set(s.blocked_edges);cX=new Set(s.closed_exits);upd()}
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   LOADING
-   ═══════════════════════════════════════════════════════════════════════════ */
-function setErr(list) { lastErr = list; renderErr(); }
-function renderErr() {
-  const b = $("err");
-  if (!lastErr) { b.style.display = "none"; return; }
-  b.style.display = "block";
-  const lines = lastErr.map(([k, a]) => {
-    const v = t(k);
-    return "• " + (typeof v === "function" ? v(a) : v);
-  }).join("\n");
-  b.innerHTML = `<strong>${esc(t("errTitle"))}</strong>${esc(lines)}`;
-}
+/* ════════════════════════════════════════ TEXT / I18N ══════════════════ */
+function renderTxt(){
+  document.documentElement.lang=lang==="bn"?"bn":"en";
+  $("t_sub").textContent=t("sub");
+  $("t_import").textContent=t("imp");
+  $("t_sample").textContent=t("sample");
+  $("t_reset").textContent=t("reset");
+  $("lang").textContent=t("lang");
+  $("mStart").textContent=t("mStart"); $("mHaz").textContent=t("mHaz");
+  $("mStart").setAttribute("aria-pressed",String(mode==="start"));
+  $("mHaz").setAttribute("aria-pressed",String(mode==="haz"));
+  $("tip").textContent=mode==="start"?t("tipStart"):t("tipHaz");
+  $("t_leg").textContent=t("leg");
+  document.body.classList.toggle("haz-mode",mode==="haz");
+  const bn=$("bname");
+  D?(bn.textContent=D.building,bn.classList.add("on")):bn.classList.remove("on");
+  $("stats").innerHTML=D?`<span>⬡ ${esc(t("nc")(D.nodes.length))}</span><span>⟋ ${esc(t("ec")(D.edges.length))}</span>`:"";
+  // legend
+  const sw=(c,x)=>`<span class="ld ${x||""}" style="background:${c}" aria-hidden="true"></span>`;
+  $("leg").innerHTML=[
+    [sw("var(--room)"),"room"],
+    [sw("var(--junc)"),"junction"],
+    [sw("var(--exit)","sq"),"exit"],
+    [sw("var(--bad)"),"blockedN"],
+    [sw("var(--bad)","sq"),"closedE"],
+    [sw("","dash"),"blockedC"],
+    [`<span class="ld rl" aria-hidden="true"></span>`,"route"],
+    [sw("","sr"),"start"],
+  ].map(([s,k])=>`<div class="leg-item" role="listitem">${s}<span>${esc(t(k))}</span></div>`).join("");
+  showErr();if(D)upd()}
 
-function load(d) {
-  const errs = validate(d);
-  if (errs.length) { setErr(errs); return; }
-  setErr(null);
-  D = d;
-  start = null;
-  mode  = "start";
-  buildMap();
-  applyInitial();
-  renderText();
-}
+/* ════════════════════════════════════════ THEME ═════════════════════════ */
+function syncThemeBtn(){
+  const th=document.documentElement.getAttribute("data-theme")||"";
+  const dark=th==="dark"||(th===""&&window.matchMedia("(prefers-color-scheme:dark)").matches);
+  $("theme").textContent=dark?"☀️":"🌙"}
+(()=>{const s=localStorage.getItem("se-theme");if(s)document.documentElement.setAttribute("data-theme",s);syncThemeBtn()})();
+$("theme").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme")||"";
+  const pref=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";
+  const nxt=cur==="dark"?"light":cur==="light"?"":pref==="dark"?"light":"dark";
+  document.documentElement.setAttribute("data-theme",nxt);
+  localStorage.setItem("se-theme",nxt);syncThemeBtn()});
 
-function applyInitial() {
-  const s = D.initial_state;
-  bN = new Set(s.blocked_nodes);
-  bE = new Set(s.blocked_edges);
-  cX = new Set(s.closed_exits);
-  runUpdate();
-}
+/* ════════════════════════════════════════ EVENTS ════════════════════════ */
+$("file").addEventListener("change",async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{load(JSON.parse(await f.text()))}catch{setErr([["bad_json"]])}
+  e.target.value=""});
+$("importLabel").addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();$("file").click()}});
+$("sample").addEventListener("click",()=>load(structuredClone(SAMPLE)));
+$("reset").addEventListener("click",()=>{if(D)applyInit()});
+$("lang").addEventListener("click",()=>{lang=lang==="en"?"bn":"en";renderTxt()});
+$("mStart").addEventListener("click",()=>{mode="start";renderTxt()});
+$("mHaz").addEventListener("click",()=>{mode="haz";renderTxt()});
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   TEXT / I18N
-   ═══════════════════════════════════════════════════════════════════════════ */
-function renderText() {
-  document.documentElement.lang = lang === "bn" ? "bn" : "en";
-  $("t_sub").textContent    = t("sub");
-  $("t_import").textContent = t("imp");
-  $("t_sample").textContent = t("sample");
-  $("t_reset").textContent  = t("reset");
-  $("lang").textContent     = t("lang");
-  $("mStart").textContent   = t("mStart");
-  $("mHaz").textContent     = t("mHaz");
-  $("mStart").setAttribute("aria-pressed", String(mode === "start"));
-  $("mHaz").setAttribute("aria-pressed",   String(mode === "haz"));
-  $("tip").textContent      = mode === "start" ? t("tipStart") : t("tipHaz");
-  $("t_leg").textContent    = t("leg");
-  document.body.classList.toggle("haz-mode", mode === "haz");
-
-  const bn = $("bname");
-  if (D) {
-    bn.textContent = D.building;
-    bn.classList.add("visible");
-  } else {
-    bn.classList.remove("visible");
-  }
-
-  // Stats
-  const stats = $("stats");
-  if (D) {
-    stats.innerHTML =
-      `<span>📦 ${esc(t("nodes_count")(D.nodes.length))}</span>` +
-      `<span>🔗 ${esc(t("edges_count")(D.edges.length))}</span>`;
-  } else {
-    stats.innerHTML = "";
-  }
-
-  // Legend
-  const leg = $("leg");
-  const sw  = (color, extra) =>
-    `<span class="legend-swatch ${extra||""}" style="background:${color}" aria-hidden="true"></span>`;
-  leg.innerHTML = [
-    [sw("var(--room)"),  "room"],
-    [sw("var(--junc)"),  "junction"],
-    [sw("var(--exit)","square"), "exit"],
-    [sw("var(--bad)"),   "blockedN"],
-    [sw("var(--bad)","square"), "closedE"],
-    [sw("","dashed"),    "blockedC"],
-    [`<span class="legend-swatch" style="background:var(--route);border-radius:3px;height:.25rem;margin-top:.5rem" aria-hidden="true"></span>`, "route"],
-    [sw("","ring-start"), "start"],
-  ].map(([swatch, key]) =>
-    `<div class="legend-item" role="listitem">${swatch}<span>${esc(t(key))}</span></div>`
-  ).join("");
-
-  renderErr();
-  if (D) runUpdate();
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   THEME TOGGLE
-   ═══════════════════════════════════════════════════════════════════════════ */
-function initTheme() {
-  const saved = localStorage.getItem("se-theme");
-  if (saved) {
-    document.documentElement.setAttribute("data-theme", saved);
-    $("theme").textContent = saved === "dark" ? "☀️" : "🌙";
-  }
-}
-$("theme").addEventListener("click", () => {
-  const cur  = document.documentElement.getAttribute("data-theme");
-  const pref = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  // Cycle: "" → opposite of system → system → ""
-  let next;
-  if (cur === "dark")  next = "light";
-  else if (cur === "light") next = "";
-  else next = pref === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", next);
-  localStorage.setItem("se-theme", next);
-  $("theme").textContent = (next === "dark" || (next === "" && pref === "dark")) ? "☀️" : "🌙";
-});
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   EVENT HANDLERS
-   ═══════════════════════════════════════════════════════════════════════════ */
-$("file").addEventListener("change", async e => {
-  const f = e.target.files[0];
-  if (!f) return;
-  try { load(JSON.parse(await f.text())); }
-  catch { setErr([["bad_json"]]); }
-  e.target.value = "";
-});
-
-// Make the label keyboard-accessible (Enter / Space triggers the hidden input)
-$("importLabel").addEventListener("keydown", ev => {
-  if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("file").click(); }
-});
-
-$("sample").addEventListener("click", () => load(structuredClone(SAMPLE)));
-$("reset").addEventListener("click",  () => { if (D) applyInitial(); });
-$("lang").addEventListener("click",   () => { lang = lang === "en" ? "bn" : "en"; renderText(); });
-$("mStart").addEventListener("click", () => { mode = "start"; renderText(); });
-$("mHaz").addEventListener("click",   () => { mode = "haz";   renderText(); });
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   BOOT
-   ═══════════════════════════════════════════════════════════════════════════ */
-initTheme();
+/* ════════════════════════════════════════ BOOT ══════════════════════════ */
 load(structuredClone(SAMPLE));
 </script>
 </body>
