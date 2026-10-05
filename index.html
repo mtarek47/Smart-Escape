@@ -299,13 +299,30 @@ body.haz-mode .edge line.hit{cursor:crosshair}
   border-left:3px solid var(--bad);
 }
 
-.info-hint{
-  font-size:.75rem;color:var(--ink2);line-height:1.45;
-  background:var(--surf2);border-radius:6px;padding:.45rem .65rem;
-  border-left:3px solid var(--room);
+.cat-avatar{
+  width:42px;height:42px;
+  border-radius:10px;
+  object-fit:cover;
+  border:2px solid var(--border);
+  box-shadow:0 3px 10px rgba(0,0,0,.35);
+  flex-shrink:0;
+  vertical-align:middle;
+}
+.res-card.ok .cat-avatar{
+  border-color:var(--exit);
+  box-shadow:0 0 14px var(--glow-g);
+}
+.res-card.fail .cat-avatar{
+  border-color:var(--bad);
+  box-shadow:0 0 16px var(--glow-b);
+  animation:cat-panic .45s ease-in-out infinite alternate;
+}
+@keyframes cat-panic{
+  from{transform:rotate(-3deg) scale(1)}
+  to{transform:rotate(3deg) scale(1.05)}
 }
 
-.res-hd{padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid rgba(255,255,255,.06)}
+.res-hd{padding:.7rem 1rem;display:flex;align-items:center;gap:.75rem;border-bottom:1px solid rgba(255,255,255,.06)}
 .res-icon{font-size:1.9rem;line-height:1}
 .res-title{font-size:1.05rem;font-weight:900;letter-spacing:.01em}
 .res-title.ok-c  {color:var(--exit)}
@@ -744,7 +761,10 @@ function renderRes(r){
       const cls=p===start?"s-chip":i===r.path.length-1?"e-chip":"r-chip";
       return`<span class="chip ${cls}">${esc(p)}</span>${i<r.path.length-1?'<span class="arr">▶</span>':""}`}).join("");
     el.innerHTML=`<div class="res-card ok">
-      <div class="res-hd"><span class="res-icon">🏃</span><span class="res-title ok-c">${esc(t("escaped"))}</span></div>
+      <div class="res-hd">
+        <img src="Resources/happy-cat.gif" alt="Happy Cat" class="cat-avatar" onerror="this.outerHTML='<span class=\'res-icon\'>🏃</span>'">
+        <span class="res-title ok-c">${esc(t("escaped"))}</span>
+      </div>
       <div class="res-body">
         <div class="cost-row"><span class="cost-num">${r.cost}</span><span class="cost-unit">${esc(t("cost"))}</span></div>
         <div class="exit-tag">🚪 ${esc(t("exitL"))}: <b>${esc(r.exit)}</b></div>
@@ -754,7 +774,10 @@ function renderRes(r){
   } else if(r.status==="startBlocked"){
     el.innerHTML=`<div class="res-card fail">
       <div class="hazard-tape"></div>
-      <div class="res-hd"><span class="res-icon alarm-anim">🚨</span><span class="res-title fail-c">${esc(t("danger"))}</span></div>
+      <div class="res-hd">
+        <img src="Resources/panic-cat.gif" alt="Panic Cat" class="cat-avatar" onerror="this.outerHTML='<span class=\'res-icon alarm-anim\'>🔥</span>'">
+        <span class="res-title fail-c">${esc(t("danger"))}</span>
+      </div>
       <div class="res-body">
         <div class="fail-badge">⚠️ ${esc(t("alertBadge"))}</div>
         <div class="fail-main-msg">${esc(t("startBlocked"))}</div>
@@ -765,7 +788,10 @@ function renderRes(r){
   } else if(r.status==="noRoute"){
     el.innerHTML=`<div class="res-card fail">
       <div class="hazard-tape"></div>
-      <div class="res-hd"><span class="res-icon alarm-anim">🚨</span><span class="res-title fail-c">${esc(t("no_route"))}</span></div>
+      <div class="res-hd">
+        <img src="Resources/panic-cat.gif" alt="Panic Cat" class="cat-avatar" onerror="this.outerHTML='<span class=\'res-icon alarm-anim\'>🚨</span>'">
+        <span class="res-title fail-c">${esc(t("no_route"))}</span>
+      </div>
       <div class="res-body">
         <div class="fail-badge">⚠️ ${esc(t("alertBadge"))}</div>
         <div class="fail-main-msg">${esc(t("noRoute"))}</div>
