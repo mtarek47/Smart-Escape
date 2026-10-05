@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Escape</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f4f6f8;--panel:#fff;--ink:#17202b;--mute:#5d6b7a;--line:#d5dce3;--room:#2b6cb0;--junc:#8794a3;--exit:#1f8a5b;--bad:#c93c3c;--route:#e8890c;--sel:#17202b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10161d;--panel:#18212b;--ink:#e7edf3;--mute:#93a1b0;--line:#2c3945;--room:#5b9ae0;--junc:#7d8b99;--exit:#3cc58a;--bad:#ef6a6a;--route:#f5a43a;--sel:#e7edf3}}
+:root[data-theme="dark"]{--bg:#10161d;--panel:#18212b;--ink:#e7edf3;--mute:#93a1b0;--line:#2c3945;--room:#5b9ae0;--junc:#7d8b99;--exit:#3cc58a;--bad:#ef6a6a;--route:#f5a43a;--sel:#e7edf3}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*:before,*:after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Trebuchet MS","Segoe UI","Noto Sans Bengali",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+h1{font-size:20px;margin:0}h1 small{display:block;font-size:12px;font-weight:400;color:var(--mute)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;padding:14px;max-width:1200px;margin:0 auto}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+.card h2{font-size:15px;margin:0 0 8px}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 12px;border-radius:6px;cursor:pointer;transition:background .15s,border-color .15s}
+button:hover,.btn:hover{border-color:var(--room)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible,.btn:focus-within{outline:3px solid var(--route);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#err{display:none;background:color-mix(in srgb,var(--bad) 14%,var(--panel));border:1px solid var(--bad);padding:10px 12px;border-radius:6px;margin-bottom:10px;white-space:pre-line}
+#mapwrap{overflow:auto}
+svg{width:100%;height:auto;max-height:70vh;display:block;touch-action:manipulation}
+.edge line.vis{stroke:var(--line);stroke-width:4;stroke-linecap:round;transition:stroke .25s,stroke-width .25s}
+.edge line.hit{stroke:transparent;stroke-width:22;cursor:pointer}
+.edge.blocked line.vis{stroke:var(--bad);stroke-dasharray:3 7}
+.edge.route line.vis{stroke:var(--route);stroke-width:7;stroke-dasharray:10 6;animation:flow 1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-16}}
+.edge .cb{fill:var(--panel);stroke:var(--line)}.edge text{font-size:12px;fill:var(--ink);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.node{cursor:pointer}.node circle{stroke:var(--panel);stroke-width:3;transition:fill .25s,r .2s,stroke .25s}
+.node.room circle{fill:var(--room)}.node.junction circle{fill:var(--junc)}.node.exit rect{fill:var(--exit);stroke:var(--panel);stroke-width:3;transition:fill .25s}
+.node text{font-size:12px;font-weight:700;fill:var(--ink);text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:var(--panel);stroke-width:4px}
+.node.blocked circle,.node.closed rect{fill:var(--bad)}
+.node.blocked text,.node.closed text{text-decoration:line-through}
+.node.onroute circle,.node.onroute rect{stroke:var(--route)}
+.node.start circle{stroke:var(--sel);stroke-width:4;r:19}
+.node.pulse circle,.node.pulse rect{animation:pop .3s ease-out}
+@keyframes pop{50%{transform:scale(1.2)}}
+.node circle,.node rect{transform-box:fill-box;transform-origin:center}
+.node:focus-visible{outline:none}.node:focus-visible circle,.node:focus-visible rect{stroke:var(--route)}
+#res{font-size:15px}.ok{border-left:5px solid var(--exit)}.fail{border-left:5px solid var(--bad)}.info{border-left:5px solid var(--junc)}
+#res b.big{font-size:20px}.path{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.path span{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 7px;font-weight:700}
+.lg{display:grid;gap:5px;font-size:13px;color:var(--mute)}.lg i{display:inline-block;width:16px;height:16px;vertical-align:-3px;margin-right:6px;border-radius:50%}
+.side{display:grid;gap:14px;align-content:start}
+.tip{font-size:13px;color:var(--mute);margin:8px 0 0}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="t_title">Smart Escape<small id="t_sub"></small></h1>
+  <div class="row">
+    <label class="btn"><span id="t_import"></span><input id="file" type="file" accept=".json,application/json" hidden></label>
+    <button id="sample"></button>
+    <button id="reset"></button>
+    <button id="lang" aria-label="Language"></button>
+  </div>
+</header>
+<main>
+  <section>
+    <div id="err" role="alert"></div>
+    <div class="card">
+      <div class="row" style="margin-bottom:8px">
+        <b id="bname"></b>
+        <span style="flex:1"></span>
+        <button id="mStart" aria-pressed="true"></button>
+        <button id="mHaz" aria-pressed="false"></button>
+      </div>
+      <div id="mapwrap"><svg id="map" role="img" aria-label="Building map"></svg></div>
+      <p class="tip" id="tip"></p>
+    </div>
+  </section>
+  <aside class="side">
+    <div class="card" id="res" aria-live="polite"></div>
+    <div class="card"><h2 id="t_leg"></h2><div class="lg" id="leg"></div></div>
+  </aside>
+</main>
+<script>
+const SAMPLE={building:"Sample Building",nodes:[
+{id:"R1",label:"Room 1",type:"room",x:80,y:80},{id:"C1",label:"Junction 1",type:"junction",x:240,y:80},
+{id:"C2",label:"Junction 2",type:"junction",x:400,y:80},{id:"E1",label:"Exit 1",type:"exit",x:560,y:80},
+{id:"R2",label:"Room 2",type:"room",x:80,y:240},{id:"C3",label:"Junction 3",type:"junction",x:240,y:240},
+{id:"C4",label:"Junction 4",type:"junction",x:400,y:240},{id:"E2",label:"Exit 2",type:"exit",x:560,y:240}],
+edges:[{id:"e1",from:"R1",to:"C1",cost:2},{id:"e2",from:"C1",to:"C2",cost:2},{id:"e3",from:"C2",to:"E1",cost:3},
+{id:"e4",from:"R1",to:"R2",cost:4},{id:"e5",from:"C1",to:"C3",cost:3},{id:"e6",from:"C2",to:"C4",cost:5},
+{id:"e7",from:"R2",to:"C3",cost:1},{id:"e8",from:"C3",to:"C4",cost:3},{id:"e9",from:"C4",to:"E2",cost:3}],
+initial_state:{blocked_nodes:[],blocked_edges:[],closed_exits:[]}};
+
+const T={en:{
+sub:"Interactive evacuation route simulator",imp:"Import building.json",sample:"Load sample",reset:"Reset",lang:"বাংলা",
+mStart:"Choose start",mHaz:"Change hazards",
+tipStart:"Click a room or junction to set the start.",tipHaz:"Click a room/junction to block it, a corridor to block it, or an exit to close it. Click again to undo.",
+leg:"Legend",room:"Room",junction:"Junction",exit:"Exit",blockedN:"Blocked room/junction",closedE:"Closed exit",blockedC:"Blocked corridor",route:"Best route",start:"Start",
+pick:"Select a starting room or junction.",noRoute:"No route available",startBlocked:"Starting location blocked",
+exitL:"Exit",cost:"Total cost",path:"Route",
+errTitle:"Could not load file:",
+bad_json:"The file is not valid JSON.",bad_root:"Top level must be an object.",bad_building:"“building” must be a non-empty string.",
+bad_nodes:"“nodes” must be an array of 2–60 items.",bad_edges:"“edges” must be an array of 1–150 items.",
+bad_node:n=>`Node #${n}: needs a unique string id, non-empty label, type room/junction/exit and numeric x, y.`,
+dup_node:n=>`Duplicate node id “${n}”.`,
+bad_edge:n=>`Edge #${n}: needs a unique string id and a positive integer cost.`,dup_edge:n=>`Duplicate edge id “${n}”.`,
+edge_ref:n=>`Edge “${n}” refers to an unknown node.`,loop:n=>`Edge “${n}” is a self-loop.`,pair:n=>`Edge “${n}” repeats an existing node pair.`,
+need_types:"Need at least one room/junction and one exit.",
+bad_state:"“initial_state” must contain arrays blocked_nodes, blocked_edges and closed_exits.",
+st_bn:n=>`blocked_nodes: “${n}” is not an existing room/junction.`,st_be:n=>`blocked_edges: “${n}” is not an existing edge.`,st_ce:n=>`closed_exits: “${n}” is not an existing exit.`,
+loaded:"Loaded"},
+bn:{
+sub:"ইন্টারঅ্যাক্টিভ উদ্ধার-পথ সিমুলেটর",imp:"building.json আমদানি",sample:"নমুনা লোড",reset:"রিসেট",lang:"English",
+mStart:"শুরু বেছে নিন",mHaz:"বিপদ পরিবর্তন",
+tipStart:"শুরুর স্থান ঠিক করতে কোনো রুম বা জংশনে ক্লিক করুন।",tipHaz:"রুম/জংশনে ক্লিক করলে বন্ধ হবে, করিডোরে ক্লিক করলে বন্ধ হবে, এক্সিটে ক্লিক করলে বন্ধ হবে। আবার ক্লিক করলে খুলবে।",
+leg:"নির্দেশিকা",room:"রুম",junction:"জংশন",exit:"এক্সিট",blockedN:"বন্ধ রুম/জংশন",closedE:"বন্ধ এক্সিট",blockedC:"বন্ধ করিডোর",route:"সেরা পথ",start:"শুরু",
+pick:"একটি শুরুর রুম বা জংশন নির্বাচন করুন।",noRoute:"কোনো পথ নেই",startBlocked:"শুরুর স্থান বন্ধ",
+exitL:"এক্সিট",cost:"মোট খরচ",path:"পথ",
+errTitle:"ফাইল লোড করা যায়নি:",
+bad_json:"ফাইলটি সঠিক JSON নয়।",bad_root:"সবার উপরের অংশ অবশ্যই একটি অবজেক্ট হতে হবে।",bad_building:"“building” অবশ্যই অখালি স্ট্রিং হতে হবে।",
+bad_nodes:"“nodes” অবশ্যই ২–৬০টি আইটেমের অ্যারে হতে হবে।",bad_edges:"“edges” অবশ্যই ১–১৫০টি আইটেমের অ্যারে হতে হবে।",
+bad_node:n=>`নোড #${n}: অনন্য স্ট্রিং id, অখালি label, type (room/junction/exit) এবং সংখ্যাসূচক x, y দরকার।`,
+dup_node:n=>`নোড id “${n}” পুনরাবৃত্ত হয়েছে।`,
+bad_edge:n=>`এজ #${n}: অনন্য স্ট্রিং id এবং ধনাত্মক পূর্ণসংখ্যার cost দরকার।`,dup_edge:n=>`এজ id “${n}” পুনরাবৃত্ত হয়েছে।`,
+edge_ref:n=>`এজ “${n}” অজানা নোড উল্লেখ করেছে।`,loop:n=>`এজ “${n}” নিজেকেই যুক্ত করেছে।`,pair:n=>`এজ “${n}” একই নোড জোড়া পুনরায় ব্যবহার করেছে।`,
+need_types:"কমপক্ষে একটি রুম/জংশন এবং একটি এক্সিট দরকার।",
+bad_state:"“initial_state”-এ blocked_nodes, blocked_edges ও closed_exits অ্যারে থাকতে হবে।",
+st_bn:n=>`blocked_nodes: “${n}” কোনো বিদ্যমান রুম/জংশন নয়।`,st_be:n=>`blocked_edges: “${n}” কোনো বিদ্যমান এজ নয়।`,st_ce:n=>`closed_exits: “${n}” কোনো বিদ্যমান এক্সিট নয়।`,
+loaded:"লোড হয়েছে"}};
+
+let lang="en",mode="start",D=null,bN=new Set,bE=new Set,cX=new Set,start=null,lastErr=null;
+const $=id=>document.getElementById(id),t=k=>T[lang][k],NS="http://www.w3.org/2000/svg";
+
+/* ---------- validation: returns [errors as [key,arg]] ---------- */
+function validate(d){
+  const E=[],push=(k,a)=>E.push([k,a]);
+  if(!d||typeof d!=="object"||Array.isArray(d)){return[["bad_root"]]}
+  if(typeof d.building!=="string"||!d.building.trim())push("bad_building");
+  if(!Array.isArray(d.nodes)||d.nodes.length<2||d.nodes.length>60){push("bad_nodes");return E}
+  if(!Array.isArray(d.edges)||d.edges.length<1||d.edges.length>150){push("bad_edges");return E}
+  const ids=new Map;
+  d.nodes.forEach((n,i)=>{
+    const ok=n&&typeof n.id==="string"&&n.id&&typeof n.label==="string"&&n.label.trim()&&["room","junction","exit"].includes(n.type)&&Number.isFinite(n.x)&&Number.isFinite(n.y);
+    if(!ok){push("bad_node",i+1);return}
+    if(ids.has(n.id))push("dup_node",n.id);else ids.set(n.id,n)});
+  const eids=new Map,pairs=new Set;
+  d.edges.forEach((e,i)=>{
+    if(!e||typeof e.id!=="string"||!e.id||!Number.isInteger(e.cost)||e.cost<=0){push("bad_edge",i+1);return}
+    if(eids.has(e.id)){push("dup_edge",e.id);return}eids.set(e.id,e);
+    if(!ids.has(e.from)||!ids.has(e.to)){push("edge_ref",e.id);return}
+    if(e.from===e.to){push("loop",e.id);return}
+    const k=[e.from,e.to].sort().join("\u0000");if(pairs.has(k))push("pair",e.id);pairs.add(k)});
+  const types=[...ids.values()].map(n=>n.type);
+  if(!types.includes("exit")||!types.some(x=>x!=="exit"))push("need_types");
+  const s=d.initial_state;
+  if(!s||!["blocked_nodes","blocked_edges","closed_exits"].every(k=>Array.isArray(s[k])))push("bad_state");
+  else{
+    s.blocked_nodes.forEach(i=>{const n=ids.get(i);if(!n||n.type==="exit")push("st_bn",i)});
+    s.blocked_edges.forEach(i=>{if(!eids.has(i))push("st_be",i)});
+    s.closed_exits.forEach(i=>{const n=ids.get(i);if(!n||n.type!=="exit")push("st_ce",i)})}
+  return E}
+
+/* ---------- routing ---------- */
+function dijkstra(adj,src){
+  const dist=new Map([[src,0]]),done=new Set;
+  for(;;){let u=null,b=Infinity;
+    for(const[k,v]of dist)if(!done.has(k)&&v<b){b=v;u=k}
+    if(u===null)return dist;done.add(u);
+    for(const[v,c]of adj.get(u)||[]){const nd=b+c;if(!dist.has(v)||nd<dist.get(v))dist.set(v,nd)}}}
+function route(){
+  if(!D||!start)return{status:"none"};
+  if(bN.has(start))return{status:"startBlocked"};
+  const adj=new Map(D.nodes.map(n=>[n.id,[]]));
+  D.edges.forEach(e=>{
+    if(bE.has(e.id)||bN.has(e.from)||bN.has(e.to))return;
+    // closed exits are never usable, even as intermediates
+    if(cX.has(e.from)||cX.has(e.to))return;
+    adj.get(e.from).push([e.to,e.cost]);adj.get(e.to).push([e.from,e.cost])});
+  const dS=dijkstra(adj,start);
+  let best=null;
+  D.nodes.filter(n=>n.type==="exit"&&!cX.has(n.id)&&dS.has(n.id)).forEach(n=>{
+    const c=dS.get(n.id);if(!best||c<best.c||(c===best.c&&n.id<best.id))best={id:n.id,c}});
+  if(!best)return{status:"noRoute"};
+  // lexicographically smallest node sequence among all shortest paths
+  const dE=dijkstra(adj,best.id),path=[start];let cur=start;
+  while(cur!==best.id){
+    const nx=(adj.get(cur)).filter(([v,c])=>dE.has(v)&&c+dE.get(v)===dE.get(cur)).map(x=>x[0]).sort((a,b)=>a<b?-1:a>b?1:0)[0];
+    path.push(nx);cur=nx}
+  return{status:"ok",exit:best.id,cost:best.c,path}}
+
+/* ---------- map ---------- */
+const els={nodes:new Map,edges:new Map};
+function build(){
+  const svg=$("map");svg.innerHTML="";els.nodes.clear();els.edges.clear();
+  const xs=D.nodes.map(n=>n.x),ys=D.nodes.map(n=>n.y),pad=60;
+  const x0=Math.min(...xs),y0=Math.min(...ys),w=Math.max(...xs)-x0||1,h=Math.max(...ys)-y0||1;
+  const s=Math.min(760/w,420/h,1e9),W=w*s+pad*2,H=h*s+pad*2;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const P=n=>[(n.x-x0)*s+pad,(n.y-y0)*s+pad],byId=new Map(D.nodes.map(n=>[n.id,n]));
+  const gE=document.createElementNS(NS,"g"),gN=document.createElementNS(NS,"g");
+  const mk=(tag,a,p)=>{const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+  D.edges.forEach(e=>{
+    const[a,b]=[P(byId.get(e.from)),P(byId.get(e.to))],g=mk("g",{class:"edge"},gE);
+    mk("line",{class:"vis",x1:a[0],y1:a[1],x2:b[0],y2:b[1]},g);
+    const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,l=String(e.cost).length*8+10;
+    mk("rect",{class:"cb",x:mx-l/2,y:my-10,width:l,height:20,rx:5},g);
+    mk("text",{x:mx,y:my},g).textContent=e.cost;
+    const h=mk("line",{class:"hit",x1:a[0],y1:a[1],x2:b[0],y2:b[1]},g);
+    h.addEventListener("click",()=>{if(mode==="haz"){tog(bE,e.id);update()}});
+    const ti=mk("title",{},g);ti.textContent=`${e.id}: ${e.from}–${e.to} (${e.cost})`;
+    els.edges.set(e.id,g)});
+  D.nodes.forEach(n=>{
+    const[x,y]=P(n),g=mk("g",{class:"node "+n.type,tabindex:0,role:"button","aria-label":n.label},gN);
+    if(n.type==="exit")mk("rect",{x:x-17,y:y-17,width:34,height:34,rx:7},g);else mk("circle",{cx:x,cy:y,r:16},g);
+    mk("text",{x,y:y+34},g).textContent=n.label;
+    mk("text",{x,y:y+4,style:"fill:#fff;stroke:none;font-size:11px"},g).textContent=n.id;
+    const act=()=>{
+      g.classList.remove("pulse");void g.getBoundingClientRect();g.classList.add("pulse");
+      if(mode==="haz"){tog(n.type==="exit"?cX:bN,n.id)}else if(n.type!=="exit"){start=n.id}
+      update()};
+    g.addEventListener("click",act);
+    g.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();act()}});
+    els.nodes.set(n.id,g)});
+  svg.append(gE,gN)}
+function tog(set,id){set.has(id)?set.delete(id):set.add(id)}
+
+function update(){
+  const r=route(),onP=new Set(r.path||[]),pe=new Set;
+  if(r.path)for(let i=0;i<r.path.length-1;i++)pe.add([r.path[i],r.path[i+1]].sort().join("|"));
+  D.edges.forEach(e=>{const g=els.edges.get(e.id);
+    g.classList.toggle("blocked",bE.has(e.id)||bN.has(e.from)||bN.has(e.to));
+    g.classList.toggle("route",pe.has([e.from,e.to].sort().join("|")))});
+  D.nodes.forEach(n=>{const g=els.nodes.get(n.id);
+    g.classList.toggle("blocked",bN.has(n.id));g.classList.toggle("closed",cX.has(n.id));
+    g.classList.toggle("start",n.id===start);g.classList.toggle("onroute",onP.has(n.id))});
+  const el=$("res");
+  if(r.status==="ok")el.innerHTML=`<div class="ok" style="padding-left:10px"><b class="big">${t("cost")}: ${r.cost}</b><br>${t("exitL")}: <b>${r.exit}</b><div class="path">${r.path.map(p=>`<span>${p}</span>`).join("→")}</div></div>`;
+  else{const m=r.status==="startBlocked"?t("startBlocked"):r.status==="noRoute"?t("noRoute"):t("pick");
+    el.innerHTML=`<div class="${r.status==="none"?"info":"fail"}" style="padding-left:10px"><b class="big">${m}</b></div>`}}
+
+/* ---------- loading ---------- */
+function setErr(list){lastErr=list;showErr()}
+function showErr(){const b=$("err");if(!lastErr){b.style.display="none";return}
+  b.style.display="block";b.textContent=t("errTitle")+"\n• "+lastErr.map(([k,a])=>{const v=t(k);return typeof v==="function"?v(a):v}).join("\n• ")}
+function load(d){
+  const E=validate(d);if(E.length){setErr(E);return}
+  setErr(null);D=d;const s=d.initial_state;
+  start=null;mode="start";build();applyInitial();text()}
+function applyInitial(){const s=D.initial_state;bN=new Set(s.blocked_nodes);bE=new Set(s.blocked_edges);cX=new Set(s.closed_exits);update()}
+function text(){
+  document.documentElement.lang=lang==="bn"?"bn":"en";
+  $("t_sub").textContent=t("sub");$("t_import").textContent=t("imp");$("sample").textContent=t("sample");$("reset").textContent=t("reset");$("lang").textContent=t("lang");
+  $("mStart").textContent=t("mStart");$("mHaz").textContent=t("mHaz");
+  $("mStart").setAttribute("aria-pressed",mode==="start");$("mHaz").setAttribute("aria-pressed",mode==="haz");
+  $("tip").textContent=mode==="start"?t("tipStart"):t("tipHaz");
+  $("t_leg").textContent=t("leg");$("bname").textContent=D?D.building:"";
+  const L=(c,s,k)=>`<div><i style="background:${c};${s||""}"></i>${t(k)}</div>`;
+  $("leg").innerHTML=L("var(--room)","","room")+L("var(--junc)","","junction")+L("var(--exit)","border-radius:4px","exit")+
+    L("var(--bad)","","blockedN")+L("var(--bad)","border-radius:4px","closedE")+L("transparent","border:3px dotted var(--bad)","blockedC")+
+    L("transparent","border:3px solid var(--route)","route")+L("transparent","border:3px solid var(--sel)","start");
+  showErr();if(D)update()}
+
+$("file").addEventListener("change",async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{load(JSON.parse(await f.text()))}catch(x){setErr([["bad_json"]])}
+  e.target.value=""});
+$("sample").onclick=()=>load(structuredClone(SAMPLE));
+$("reset").onclick=()=>{if(D){applyInitial()}};
+$("lang").onclick=()=>{lang=lang==="en"?"bn":"en";text()};
+$("mStart").onclick=()=>{mode="start";text()};
+$("mHaz").onclick=()=>{mode="haz";text()};
+load(structuredClone(SAMPLE));
+</script>
+</body>
+</html>
