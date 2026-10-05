@@ -242,10 +242,68 @@ body.haz-mode .edge line.hit{cursor:crosshair}
 .side{display:grid;gap:1rem;align-content:start}
 #res{font-size:.9375rem;min-height:5rem}
 
-.res-card{border-radius:10px;overflow:hidden}
+.res-card{border-radius:10px;overflow:hidden;transition:all .25s ease}
 .res-card.ok  {border:1px solid color-mix(in srgb,var(--exit) 50%,var(--border));background:color-mix(in srgb,var(--exit) 9%,var(--surf))}
-.res-card.fail{border:1px solid color-mix(in srgb,var(--bad)  50%,var(--border));background:color-mix(in srgb,var(--bad)  9%,var(--surf))}
+.res-card.fail{
+  border:1px solid color-mix(in srgb,var(--bad) 65%,var(--border));
+  background:color-mix(in srgb,var(--bad) 10%,var(--surf));
+  box-shadow:0 0 16px rgba(218,54,51,.25);
+  animation:card-alarm 1.8s ease-in-out infinite alternate;
+}
+@keyframes card-alarm{
+  from{border-color:color-mix(in srgb,var(--bad) 45%,var(--border));box-shadow:0 0 8px rgba(218,54,51,.15)}
+  to{border-color:var(--bad);box-shadow:0 0 22px rgba(218,54,51,.4)}
+}
 .res-card.info{border:1px solid var(--border);background:var(--surf)}
+
+.hazard-tape{
+  height:5px;
+  background:repeating-linear-gradient(-45deg,#da3633,#da3633 10px,#ffd700 10px,#ffd700 20px);
+  animation:tape-flow 1.5s linear infinite;
+  background-size:28px 28px;
+}
+@keyframes tape-flow{to{background-position:28px 0}}
+
+.alarm-anim{
+  display:inline-block;
+  animation:alarm-pulse .9s ease-in-out infinite alternate;
+}
+@keyframes alarm-pulse{
+  from{transform:scale(1);filter:drop-shadow(0 0 3px var(--bad))}
+  to{transform:scale(1.2);filter:drop-shadow(0 0 14px var(--bad))}
+}
+
+.fail-badge{
+  display:inline-flex;align-items:center;gap:.3rem;
+  background:color-mix(in srgb,var(--bad) 20%,var(--surf));
+  border:1px solid color-mix(in srgb,var(--bad) 45%,transparent);
+  color:var(--bad);font-size:.72rem;font-weight:800;letter-spacing:.05em;
+  border-radius:999px;padding:.12rem .65rem;margin-bottom:.5rem;
+}
+
+.fail-main-msg{
+  font-size:1.35rem;font-weight:900;letter-spacing:-.01em;
+  color:var(--bad);line-height:1.2;margin-bottom:.55rem;
+}
+
+.start-tag{
+  display:inline-flex;align-items:center;gap:.25rem;
+  background:var(--surf2);border:1px solid var(--border);
+  color:var(--ink);font-size:.75rem;font-weight:700;
+  border-radius:6px;padding:.15rem .55rem;margin-bottom:.55rem;
+}
+
+.fail-hint{
+  font-size:.75rem;color:var(--ink2);line-height:1.45;
+  background:rgba(0,0,0,.18);border-radius:6px;padding:.45rem .65rem;
+  border-left:3px solid var(--bad);
+}
+
+.info-hint{
+  font-size:.75rem;color:var(--ink2);line-height:1.45;
+  background:var(--surf2);border-radius:6px;padding:.45rem .65rem;
+  border-left:3px solid var(--room);
+}
 
 .res-hd{padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;border-bottom:1px solid rgba(255,255,255,.06)}
 .res-icon{font-size:1.9rem;line-height:1}
@@ -406,7 +464,11 @@ const LANG = {
     st_be:n=>`blocked_edges: "${n}" is not an existing edge.`,
     st_ce:n=>`closed_exits: "${n}" is not an existing exit.`,
     loaded:"Loaded",nc:n=>`${n} nodes`,ec:n=>`${n} edges`,
-    escaped:"ESCAPED! 🎉",danger:"DANGER! 🔥",no_route:"NO ROUTE 💀",waiting:"READY… 🧭"
+    escaped:"ESCAPED! 🎉",danger:"DANGER! 🔥",no_route:"NO ROUTE 💀",waiting:"READY… 🧭",
+    alertBadge:"HAZARD ALERT",startBadge:"START NODE",
+    noRouteHint:"No exit is reachable from start! Clear blocked corridors or open exits to find a route.",
+    startBlockedHint:"Selected starting location is on fire / blocked! Choose another room or clear it.",
+    pickHint:"Click any unblocked room or junction on the map to find the best evacuation route."
   },
   bn:{
     sub:"ইন্টারঅ্যাক্টিভ উদ্ধার-পথ সিমুলেটর",
@@ -437,7 +499,11 @@ const LANG = {
     st_be:n=>`blocked_edges: "${n}" কোনো বিদ্যমান এজ নয়।`,
     st_ce:n=>`closed_exits: "${n}" কোনো বিদ্যমান এক্সিট নয়।`,
     loaded:"লোড হয়েছে",nc:n=>`${n}টি নোড`,ec:n=>`${n}টি এজ`,
-    escaped:"পালিয়েছে! 🎉",danger:"বিপদ! 🔥",no_route:"কোনো পথ নেই 💀",waiting:"অপেক্ষায়… 🧭"
+    escaped:"পালিয়েছে! 🎉",danger:"বিপদ! 🔥",no_route:"কোনো পথ নেই 💀",waiting:"অপেক্ষায়… 🧭",
+    alertBadge:"বিপদ সতর্কতা",startBadge:"শুরুর নোড",
+    noRouteHint:"শুরুর স্থান থেকে কোনো এক্সিটে পৌঁছানো যাচ্ছে না! করিডোর আনব্লক করুন বা এক্সিট খুলুন।",
+    startBlockedHint:"নির্বাচিত শুরুর স্থানটি বিপদগ্রস্ত বা বন্ধ! অন্য রুম বেছে নিন বা বাধা দূর করুন।",
+    pickHint:"সেরা উদ্ধার পথ বের করতে ম্যাপে যেকোনো উন্মুক্ত রুম বা জংশনে ক্লিক করুন।"
   }
 };
 
@@ -686,11 +752,35 @@ function renderRes(r){
         <div class="path-chips">${chips}</div>
       </div></div>`;
   } else if(r.status==="startBlocked"){
-    el.innerHTML=`<div class="res-card fail"><div class="res-hd"><span class="res-icon">🔥</span><span class="res-title fail-c">${esc(t("startBlocked"))}</span></div></div>`;
+    el.innerHTML=`<div class="res-card fail">
+      <div class="hazard-tape"></div>
+      <div class="res-hd"><span class="res-icon alarm-anim">🚨</span><span class="res-title fail-c">${esc(t("danger"))}</span></div>
+      <div class="res-body">
+        <div class="fail-badge">⚠️ ${esc(t("alertBadge"))}</div>
+        <div class="fail-main-msg">${esc(t("startBlocked"))}</div>
+        ${start?`<div class="start-tag">📍 ${esc(t("startBadge"))}: <b>${esc(start)}</b></div>`:""}
+        <div class="fail-hint">${esc(t("startBlockedHint"))}</div>
+      </div>
+    </div>`;
   } else if(r.status==="noRoute"){
-    el.innerHTML=`<div class="res-card fail"><div class="res-hd"><span class="res-icon">🚫</span><span class="res-title fail-c">${esc(t("noRoute"))}</span></div></div>`;
+    el.innerHTML=`<div class="res-card fail">
+      <div class="hazard-tape"></div>
+      <div class="res-hd"><span class="res-icon alarm-anim">🚨</span><span class="res-title fail-c">${esc(t("no_route"))}</span></div>
+      <div class="res-body">
+        <div class="fail-badge">⚠️ ${esc(t("alertBadge"))}</div>
+        <div class="fail-main-msg">${esc(t("noRoute"))}</div>
+        ${start?`<div class="start-tag">📍 ${esc(t("startBadge"))}: <b>${esc(start)}</b></div>`:""}
+        <div class="fail-hint">${esc(t("noRouteHint"))}</div>
+      </div>
+    </div>`;
   } else {
-    el.innerHTML=`<div class="res-card info"><div class="res-hd"><span class="res-icon">🧭</span><span class="res-title info-c">${esc(t("pick"))}</span></div></div>`;
+    el.innerHTML=`<div class="res-card info">
+      <div class="res-hd"><span class="res-icon" style="animation:game-bob .6s infinite alternate;display:inline-block">🧭</span><span class="res-title info-c">${esc(t("waiting"))}</span></div>
+      <div class="res-body">
+        <div class="fail-main-msg" style="color:var(--ink);font-size:1.1rem;margin-bottom:.45rem">${esc(t("pick"))}</div>
+        <div class="info-hint">${esc(t("pickHint"))}</div>
+      </div>
+    </div>`;
   }
 }
 
@@ -766,6 +856,7 @@ $("mHaz").addEventListener("click",()=>{mode="haz";renderTxt()});
 load(structuredClone(SAMPLE));
 if(location.hash==="#baseline"){start="R1";upd()}
 else if(location.hash==="#reroute"){start="R1";bN.add("C2");upd()}
+else if(location.hash==="#noroute"){start="R1";cX.add("E1");cX.add("E2");upd()}
 </script>
 </body>
 </html>
