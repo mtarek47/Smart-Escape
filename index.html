@@ -764,6 +764,8 @@ $("mHaz").addEventListener("click",()=>{mode="haz";renderTxt()});
 
 /* ════════════════════════════════════════ BOOT ══════════════════════════ */
 load(structuredClone(SAMPLE));
+if(location.hash==="#baseline"){start="R1";upd()}
+else if(location.hash==="#reroute"){start="R1";bN.add("C2");upd()}
 </script>
 </body>
 </html>

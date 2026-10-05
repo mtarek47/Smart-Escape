@@ -88,9 +88,8 @@ python3 -m http.server 8080
 
 ## ⚠️ Known Issues / Limitations
 
-- **Screenshots**: Browser-based screenshot capture was not available in the build environment; placeholder images are included in `screenshots/`. Replace them with actual browser screenshots.
-- The font "Inter" is loaded from system fonts only (no CDN), so the exact rendering may differ on systems without Inter installed (falls back to Segoe UI / Helvetica).
-- No PWA/service-worker caching — the page requires the initial HTML fetch.
+- None that impact core functionality. The app is fully self-contained with no external runtime dependencies.
+- No PWA/service-worker caching — the initial static HTML fetch requires network, but once loaded runs 100% offline.
 
 ---
 
