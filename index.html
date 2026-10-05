@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Escape — Interactive Evacuation Route Simulator</title>
+<meta name="description" content="Interactive building evacuation route simulator with real-time pathfinding.">
+<style>
+/* ── Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  --bg:      #f0f4f8;
+  --surface: #ffffff;
+  --surface2:#f7f9fb;
+  --border:  #d1dce8;
+  --ink:     #1a2532;
+  --ink2:    #4a5e72;
+  --ink3:    #8097ad;
+  --accent:  #2563eb;
+  --room:    #2563eb;
+  --junc:    #64748b;
+  --exit:    #059669;
+  --bad:     #dc2626;
+  --route:   #ea580c;
+  --sel-ring:#1e3a5f;
+  --shadow:  0 1px 3px rgba(0,0,0,.10), 0 4px 12px rgba(0,0,0,.06);
+  --shadow-lg:0 4px 16px rgba(0,0,0,.12), 0 8px 32px rgba(0,0,0,.08);
+  --r4: 4px; --r8: 8px; --r12: 12px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#0f1923; --surface:#17212e; --surface2:#1e2d3d;
+    --border:#243344; --ink:#e2eaf2; --ink2:#96afc4; --ink3:#56748d;
+    --accent:#3b82f6; --room:#3b82f6; --junc:#7b8fa3; --exit:#34d399;
+    --bad:#f87171; --route:#fb923c; --sel-ring:#93c5fd;
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 12px rgba(0,0,0,.3);
+    --shadow-lg:0 4px 16px rgba(0,0,0,.5),0 8px 32px rgba(0,0,0,.4);
+    color-scheme: dark; }
+}
+[data-theme="dark"] { --bg:#0f1923; --surface:#17212e; --surface2:#1e2d3d;
+  --border:#243344; --ink:#e2eaf2; --ink2:#96afc4; --ink3:#56748d;
+  --accent:#3b82f6; --room:#3b82f6; --junc:#7b8fa3; --exit:#34d399;
+  --bad:#f87171; --route:#fb923c; --sel-ring:#93c5fd;
+  --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 12px rgba(0,0,0,.3);
+  --shadow-lg:0 4px 16px rgba(0,0,0,.5),0 8px 32px rgba(0,0,0,.4);
+  color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
+
+/* ── Reset / Base ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Inter", "Segoe UI", "Noto Sans Bengali", "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  min-height: 100dvh;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+h2 { font-size: 0.875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink2); }
+h3 { font-size: 0.9375rem; font-weight: 600; }
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+header {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  align-items: center; justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(0,0,0,.06);
+  position: sticky; top: 0; z-index: 100;
+}
+.header-title { display: flex; flex-direction: column; gap: 0.125rem; }
+.header-title small { font-size: 0.75rem; font-weight: 400; color: var(--ink2); }
+.header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 1rem;
+  padding: 1rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r12);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+.card-header {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  align-items: center; justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.card-header .bname {
+  font-size: 0.875rem; font-weight: 600; color: var(--ink);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.125rem 0.625rem;
+  display: none;
+}
+.card-header .bname.visible { display: inline-block; }
+.mode-btns { display: flex; gap: 0.375rem; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+button, .btn-file {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  font: inherit; font-size: 0.875rem; font-weight: 500;
+  padding: 0.4rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r8);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+  -webkit-user-select: none; user-select: none;
+}
+button:hover, .btn-file:hover {
+  background: var(--surface2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+button:focus-visible, .btn-file:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+button.btn-danger { border-color: color-mix(in srgb, var(--bad) 40%, var(--border)); }
+button.btn-danger:hover { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--surface)); }
+
+/* icon-only buttons (lang, theme) */
+.btn-icon {
+  padding: 0.4rem 0.6rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* ── Error banner ───────────────────────────────────────────────────────── */
+#err {
+  display: none;
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bad) 50%, transparent);
+  border-left: 4px solid var(--bad);
+  border-radius: var(--r8);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  white-space: pre-line;
+  font-size: 0.875rem;
+  color: var(--bad);
+}
+#err strong { display: block; margin-bottom: 0.25rem; }
+
+/* ── Map area ───────────────────────────────────────────────────────────── */
+#mapwrap {
+  overflow: auto;
+  border-radius: var(--r8);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+svg#map {
+  width: 100%; height: auto;
+  max-height: 68vh;
+  display: block;
+  touch-action: manipulation;
+}
+
+/* ── SVG / Edge styles ──────────────────────────────────────────────────── */
+.edge line.vis {
+  stroke: var(--border);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke 0.2s, stroke-width 0.2s, opacity 0.2s;
+}
+.edge line.hit {
+  stroke: transparent;
+  stroke-width: 24;
+  cursor: pointer;
+}
+.edge.blocked line.vis {
+  stroke: var(--bad);
+  stroke-dasharray: 4 6;
+  stroke-width: 2.5;
+  opacity: 0.8;
+}
+.edge.route line.vis {
+  stroke: var(--route);
+  stroke-width: 6;
+  stroke-dasharray: 12 6;
+  animation: flow 0.9s linear infinite;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--route) 50%, transparent));
+}
+@keyframes flow { to { stroke-dashoffset: -18; } }
+
+.edge .cost-bg {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.08));
+}
+.edge.route .cost-bg { fill: color-mix(in srgb, var(--route) 12%, var(--surface)); stroke: var(--route); }
+.edge.blocked .cost-bg { fill: color-mix(in srgb, var(--bad) 10%, var(--surface)); stroke: var(--bad); }
+.edge text {
+  font-size: 11px; font-weight: 600;
+  fill: var(--ink2);
+  text-anchor: middle; dominant-baseline: central;
+  pointer-events: none;
+}
+.edge.route text { fill: var(--route); }
+.edge.blocked text { fill: var(--bad); }
+
+/* ── SVG / Node styles ──────────────────────────────────────────────────── */
+.node { cursor: pointer; }
+.node circle, .node rect {
+  stroke: var(--surface);
+  stroke-width: 3;
+  transition: fill 0.2s, stroke 0.2s, stroke-width 0.2s, r 0.2s, filter 0.2s;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.node.room circle { fill: var(--room); }
+.node.junction circle { fill: var(--junc); }
+.node.exit rect  { fill: var(--exit); stroke: var(--surface); }
+
+/* Labels */
+.node .id-text {
+  font-size: 10px; font-weight: 700;
+  fill: #fff;
+  text-anchor: middle; dominant-baseline: central;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(0,0,0,.2);
+  stroke-width: 2px;
+}
+.node .label-text {
+  font-size: 11px; font-weight: 600;
+  fill: var(--ink2);
+  text-anchor: middle; dominant-baseline: central;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 5px;
+}
+
+/* States */
+.node.blocked circle, .node.blocked rect { fill: var(--bad); }
+.node.closed  rect  { fill: var(--bad); opacity: 0.75; }
+.node.blocked .id-text, .node.closed .id-text { text-decoration: line-through; }
+
+.node.onroute circle, .node.onroute rect {
+  stroke: var(--route);
+  stroke-width: 4;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--route) 60%, transparent));
+}
+.node.start circle, .node.start rect {
+  stroke: var(--sel-ring);
+  stroke-width: 5;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sel-ring) 55%, transparent));
+}
+/* start overrides onroute stroke */
+.node.start.onroute circle, .node.start.onroute rect {
+  stroke: var(--sel-ring);
+  stroke-width: 5;
+}
+
+/* Animations */
+.node.pulse circle, .node.pulse rect { animation: pop 0.3s ease-out; }
+@keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.25)} 100%{transform:scale(1)} }
+
+.node:focus-visible { outline: none; }
+.node:focus-visible circle, .node:focus-visible rect { stroke: var(--accent); stroke-width: 5; }
+
+/* Hazard mode cursor */
+body.haz-mode .node { cursor: crosshair; }
+body.haz-mode .edge line.hit { cursor: crosshair; }
+
+/* ── Tip bar ────────────────────────────────────────────────────────────── */
+#tip {
+  font-size: 0.8125rem; color: var(--ink2);
+  margin-top: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r8);
+  display: flex; align-items: center; gap: 0.5rem;
+}
+#tip::before { content: "ℹ"; font-size: 0.875rem; color: var(--accent); flex-shrink: 0; }
+
+/* ── Result panel ───────────────────────────────────────────────────────── */
+#res {
+  font-size: 0.9375rem;
+  min-height: 5rem;
+}
+.res-inner {
+  border-radius: var(--r8);
+  padding: 0.875rem 1rem;
+  transition: background 0.2s, border-color 0.2s;
+}
+.res-inner.ok   { background: color-mix(in srgb, var(--exit) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--exit) 30%, transparent); border-left: 4px solid var(--exit); }
+.res-inner.fail { background: color-mix(in srgb, var(--bad) 8%, var(--surface));  border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);  border-left: 4px solid var(--bad); }
+.res-inner.info { background: color-mix(in srgb, var(--junc) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--junc) 30%, transparent); border-left: 4px solid var(--junc); }
+
+.cost-display { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; margin-bottom: 0.5rem; }
+.cost-display.ok-color { color: var(--exit); }
+.cost-label { font-size: 0.75rem; font-weight: 500; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.06em; }
+
+.exit-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  background: color-mix(in srgb, var(--exit) 15%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--exit) 30%, transparent);
+  color: var(--exit);
+  font-size: 0.8125rem; font-weight: 600;
+  border-radius: 999px;
+  padding: 0.125rem 0.625rem;
+  margin-bottom: 0.625rem;
+}
+
+.path-label { font-size: 0.75rem; font-weight: 600; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.375rem; }
+.path {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem;
+}
+.path .step {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r4);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.8125rem; font-weight: 700;
+  color: var(--ink);
+  transition: background 0.15s, border-color 0.15s;
+}
+.path .step.is-exit {
+  background: color-mix(in srgb, var(--exit) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--exit) 30%, transparent);
+  color: var(--exit);
+}
+.path .step.is-start {
+  background: color-mix(in srgb, var(--sel-ring) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--sel-ring) 30%, transparent);
+  color: var(--sel-ring);
+}
+.path .arrow { color: var(--route); font-weight: 700; font-size: 0.875rem; }
+
+.res-msg { font-size: 1rem; font-weight: 700; }
+.res-msg.fail-color { color: var(--bad); }
+.res-msg.info-color { color: var(--ink2); }
+
+/* ── Legend ─────────────────────────────────────────────────────────────── */
+.legend-grid { display: grid; gap: 0.5rem; font-size: 0.8125rem; }
+.legend-item { display: flex; align-items: center; gap: 0.625rem; color: var(--ink2); }
+.legend-swatch {
+  flex-shrink: 0;
+  width: 1.125rem; height: 1.125rem;
+  border-radius: 50%;
+}
+.legend-swatch.square { border-radius: var(--r4); }
+.legend-swatch.dashed { background: transparent !important; border: 2px dashed var(--bad); border-radius: var(--r4); }
+.legend-swatch.route-line {
+  background: transparent !important;
+  border: 3px solid var(--route);
+  border-radius: 999px;
+  height: 0.25rem;
+  border-radius: 999px;
+  margin-top: 0.5rem;
+}
+.legend-swatch.ring-start {
+  background: transparent !important;
+  border: 3px solid var(--sel-ring);
+  border-radius: 50%;
+}
+
+/* ── Side panel ─────────────────────────────────────────────────────────── */
+.side { display: grid; gap: 1rem; align-content: start; }
+
+/* ── Divider ────────────────────────────────────────────────────────────── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; }
+
+/* ── Stats row ──────────────────────────────────────────────────────────── */
+.stats-row { display: flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.75rem; color: var(--ink3); margin-top: 0.5rem; }
+.stats-row span { display: flex; align-items: center; gap: 0.25rem; }
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<header role="banner">
+  <div class="header-title">
+    <h1 id="t_title">Smart Escape</h1>
+    <small id="t_sub"></small>
+  </div>
+  <nav class="header-actions" aria-label="Controls">
+    <label class="btn-file" tabindex="0" id="importLabel">
+      <svg width="14" height="14" fill="none" viewBox="0 0 16 16" aria-hidden="true"><path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 5l3-3 3 3"/></svg>
+      <span id="t_import"></span>
+      <input id="file" type="file" accept=".json,application/json" hidden aria-hidden="true">
+    </label>
+    <button id="sample" type="button">
+      <svg width="14" height="14" fill="none" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span id="t_sample"></span>
+    </button>
+    <button id="reset" type="button" class="btn-danger">
+      <svg width="14" height="14" fill="none" viewBox="0 0 16 16" aria-hidden="true"><path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M3 8a5 5 0 105.5-4.97M3 3.5V8h4.5"/></svg>
+      <span id="t_reset"></span>
+    </button>
+    <button id="lang" type="button" class="btn-icon" aria-label="Toggle language"></button>
+    <button id="theme" type="button" class="btn-icon" aria-label="Toggle dark mode" title="Toggle theme">🌙</button>
+  </nav>
+</header>
+
+<main>
+  <!-- Map column -->
+  <section aria-label="Building map">
+    <div id="err" role="alert" aria-live="assertive"></div>
+    <div class="card">
+      <div class="card-header">
+        <span class="bname" id="bname" aria-label="Building name"></span>
+        <div class="mode-btns" role="group" aria-label="Mode">
+          <button id="mStart" type="button" aria-pressed="true"></button>
+          <button id="mHaz" type="button" aria-pressed="false"></button>
+        </div>
+        <div class="stats-row" id="stats" aria-live="polite"></div>
+      </div>
+      <div id="mapwrap">
+        <svg id="map" role="img" aria-label="Building evacuation map"></svg>
+      </div>
+      <p id="tip" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- Side column -->
+  <aside class="side" aria-label="Results and legend">
+    <div class="card" id="res" aria-live="polite" aria-atomic="true"></div>
+    <div class="card">
+      <div style="margin-bottom:0.75rem"><h2 id="t_leg"></h2></div>
+      <div class="legend-grid" id="leg" role="list"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   SAMPLE DATA
+   ═══════════════════════════════════════════════════════════════════════════ */
+const SAMPLE = {
+  building: "Sample Building",
+  nodes: [
+    { id:"R1", label:"Room 1",    type:"room",     x:80,  y:80  },
+    { id:"R2", label:"Room 2",    type:"room",     x:80,  y:240 },
+    { id:"C1", label:"Junc. 1",   type:"junction", x:240, y:80  },
+    { id:"C2", label:"Junc. 2",   type:"junction", x:400, y:80  },
+    { id:"C3", label:"Junc. 3",   type:"junction", x:240, y:240 },
+    { id:"C4", label:"Junc. 4",   type:"junction", x:400, y:240 },
+    { id:"E1", label:"Exit 1",    type:"exit",     x:560, y:80  },
+    { id:"E2", label:"Exit 2",    type:"exit",     x:560, y:240 }
+  ],
+  edges: [
+    { id:"e1", from:"R1", to:"C1", cost:2 },
+    { id:"e2", from:"C1", to:"C2", cost:2 },
+    { id:"e3", from:"C2", to:"E1", cost:3 },
+    { id:"e4", from:"R1", to:"R2", cost:4 },
+    { id:"e5", from:"C1", to:"C3", cost:3 },
+    { id:"e6", from:"C2", to:"C4", cost:5 },
+    { id:"e7", from:"R2", to:"C3", cost:1 },
+    { id:"e8", from:"C3", to:"C4", cost:3 },
+    { id:"e9", from:"C4", to:"E2", cost:3 }
+  ],
+  initial_state: { blocked_nodes:[], blocked_edges:[], closed_exits:[] }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRANSLATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+const LANG = {
+  en: {
+    sub:"Interactive Evacuation Route Simulator",
+    imp:"Import JSON", sample:"Load Sample", reset:"Reset", lang:"বাংলা",
+    mStart:"Choose Start", mHaz:"Change Hazards",
+    tipStart:"Click a room or junction to set your starting location.",
+    tipHaz:"Click a room/junction to block it · click a corridor to block it · click an exit to close it. Click again to undo.",
+    leg:"Legend", room:"Room", junction:"Junction", exit:"Exit",
+    blockedN:"Blocked room / junction", closedE:"Closed exit",
+    blockedC:"Blocked corridor", route:"Active route", start:"Start node",
+    pick:"Select a starting room or junction.",
+    noRoute:"No route available",
+    startBlocked:"Starting location blocked",
+    exitL:"Exit", cost:"Total cost", routeLabel:"Route",
+    errTitle:"Cannot load file:",
+    bad_json:"The file is not valid JSON.",
+    bad_root:"Top-level must be an object.",
+    bad_building:'"building" must be a non-empty string.',
+    bad_nodes:'"nodes" must be an array of 2–60 items.',
+    bad_edges:'"edges" must be an array of 1–150 items.',
+    bad_node: n=>`Node #${n}: needs a unique string id, non-empty label, type room/junction/exit, and numeric x, y.`,
+    dup_node: n=>`Duplicate node id "${n}".`,
+    bad_edge: n=>`Edge #${n}: needs a unique string id and a positive integer cost.`,
+    dup_edge: n=>`Duplicate edge id "${n}".`,
+    edge_ref: n=>`Edge "${n}" refers to an unknown node.`,
+    loop:     n=>`Edge "${n}" is a self-loop.`,
+    pair:     n=>`Edge "${n}" repeats an existing node pair.`,
+    need_types:"Need at least one room/junction and at least one exit.",
+    bad_state:'"initial_state" must contain arrays blocked_nodes, blocked_edges, and closed_exits.',
+    st_bn: n=>`blocked_nodes: "${n}" is not an existing room/junction.`,
+    st_be: n=>`blocked_edges: "${n}" is not an existing edge.`,
+    st_ce: n=>`closed_exits: "${n}" is not an existing exit.`,
+    loaded:"Loaded",
+    nodes_count: n=>`${n} nodes`,
+    edges_count: n=>`${n} edges`,
+  },
+  bn: {
+    sub:"ইন্টারঅ্যাক্টিভ উদ্ধার-পথ সিমুলেটর",
+    imp:"JSON আমদানি", sample:"নমুনা লোড", reset:"রিসেট", lang:"English",
+    mStart:"শুরু বেছে নিন", mHaz:"বিপদ পরিবর্তন",
+    tipStart:"শুরুর স্থান নির্ধারণ করতে কোনো রুম বা জংশনে ক্লিক করুন।",
+    tipHaz:"রুম/জংশনে ক্লিক করলে বন্ধ হবে · করিডোরে ক্লিক করলে বন্ধ হবে · এক্সিটে ক্লিক করলে বন্ধ হবে। আবার ক্লিক করলে খুলবে।",
+    leg:"নির্দেশিকা", room:"রুম", junction:"জংশন", exit:"এক্সিট",
+    blockedN:"বন্ধ রুম / জংশন", closedE:"বন্ধ এক্সিট",
+    blockedC:"বন্ধ করিডোর", route:"সক্রিয় পথ", start:"শুরু নোড",
+    pick:"একটি শুরুর রুম বা জংশন নির্বাচন করুন।",
+    noRoute:"কোনো পথ নেই",
+    startBlocked:"শুরুর স্থান বন্ধ",
+    exitL:"এক্সিট", cost:"মোট খরচ", routeLabel:"পথ",
+    errTitle:"ফাইল লোড করা যায়নি:",
+    bad_json:"ফাইলটি সঠিক JSON নয়।",
+    bad_root:"সবার উপরের অংশ অবশ্যই একটি অবজেক্ট হতে হবে।",
+    bad_building:'"building" অবশ্যই অ-খালি স্ট্রিং হতে হবে।',
+    bad_nodes:'"nodes" অবশ্যই ২–৬০টি আইটেমের অ্যারে হতে হবে।',
+    bad_edges:'"edges" অবশ্যই ১–১৫০টি আইটেমের অ্যারে হতে হবে।',
+    bad_node: n=>`নোড #${n}: অনন্য স্ট্রিং id, অ-খালি label, type (room/junction/exit) এবং সংখ্যাসূচক x, y দরকার।`,
+    dup_node: n=>`নোড id "${n}" পুনরাবৃত্ত হয়েছে।`,
+    bad_edge: n=>`এজ #${n}: অনন্য স্ট্রিং id এবং ধনাত্মক পূর্ণসংখ্যার cost দরকার।`,
+    dup_edge: n=>`এজ id "${n}" পুনরাবৃত্ত হয়েছে।`,
+    edge_ref: n=>`এজ "${n}" অজানা নোড উল্লেখ করেছে।`,
+    loop:     n=>`এজ "${n}" নিজেকেই যুক্ত করেছে (self-loop)।`,
+    pair:     n=>`এজ "${n}" একই নোড জোড়া পুনরায় ব্যবহার করেছে।`,
+    need_types:"কমপক্ষে একটি রুম/জংশন এবং একটি এক্সিট দরকার।",
+    bad_state:'"initial_state"-এ blocked_nodes, blocked_edges ও closed_exits অ্যারে থাকতে হবে।',
+    st_bn: n=>`blocked_nodes: "${n}" কোনো বিদ্যমান রুম/জংশন নয়।`,
+    st_be: n=>`blocked_edges: "${n}" কোনো বিদ্যমান এজ নয়।`,
+    st_ce: n=>`closed_exits: "${n}" কোনো বিদ্যমান এক্সিট নয়।`,
+    loaded:"লোড হয়েছে",
+    nodes_count: n=>`${n}টি নোড`,
+    edges_count: n=>`${n}টি এজ`,
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   APP STATE
+   ═══════════════════════════════════════════════════════════════════════════ */
+let lang = "en";
+let mode = "start";         // "start" | "haz"
+let D    = null;            // loaded dataset (validated)
+let bN   = new Set();       // blocked node ids
+let bE   = new Set();       // blocked edge ids
+let cX   = new Set();       // closed exit ids
+let start= null;            // selected start node id
+let lastErr = null;         // cached error list for re-render
+
+const $ = id => document.getElementById(id);
+const t = k  => LANG[lang][k];
+const NS = "http://www.w3.org/2000/svg";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VALIDATION
+   ═══════════════════════════════════════════════════════════════════════════ */
+function validate(d) {
+  const E = [], push = (k, a) => E.push([k, a]);
+  if (!d || typeof d !== "object" || Array.isArray(d)) return [["bad_root"]];
+  if (typeof d.building !== "string" || !d.building.trim()) push("bad_building");
+  if (!Array.isArray(d.nodes) || d.nodes.length < 2 || d.nodes.length > 60) { push("bad_nodes"); return E; }
+  if (!Array.isArray(d.edges) || d.edges.length < 1 || d.edges.length > 150) { push("bad_edges"); return E; }
+
+  const ids = new Map();
+  d.nodes.forEach((n, i) => {
+    const ok = n && typeof n.id === "string" && n.id &&
+               typeof n.label === "string" && n.label.trim() &&
+               ["room","junction","exit"].includes(n.type) &&
+               Number.isFinite(n.x) && Number.isFinite(n.y);
+    if (!ok) { push("bad_node", i+1); return; }
+    if (ids.has(n.id)) push("dup_node", n.id);
+    else ids.set(n.id, n);
+  });
+
+  const eids = new Map(), pairs = new Set();
+  d.edges.forEach((e, i) => {
+    if (!e || typeof e.id !== "string" || !e.id ||
+        !Number.isInteger(e.cost) || e.cost <= 0) { push("bad_edge", i+1); return; }
+    if (eids.has(e.id)) { push("dup_edge", e.id); return; }
+    eids.set(e.id, e);
+    if (!ids.has(e.from) || !ids.has(e.to)) { push("edge_ref", e.id); return; }
+    if (e.from === e.to) { push("loop", e.id); return; }
+    const pk = [e.from, e.to].sort().join("\0");
+    if (pairs.has(pk)) push("pair", e.id);
+    pairs.add(pk);
+  });
+
+  const types = [...ids.values()].map(n => n.type);
+  if (!types.includes("exit") || !types.some(x => x !== "exit")) push("need_types");
+
+  const s = d.initial_state;
+  if (!s || !["blocked_nodes","blocked_edges","closed_exits"].every(k => Array.isArray(s[k]))) {
+    push("bad_state");
+  } else {
+    s.blocked_nodes.forEach(id => { const n = ids.get(id); if (!n || n.type === "exit") push("st_bn", id); });
+    s.blocked_edges.forEach(id => { if (!eids.has(id)) push("st_be", id); });
+    s.closed_exits.forEach(id  => { const n = ids.get(id); if (!n || n.type !== "exit") push("st_ce", id); });
+  }
+  return E;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROUTING — Dijkstra + lex-smallest path reconstruction
+   ═══════════════════════════════════════════════════════════════════════════ */
+function dijkstra(adj, src) {
+  const dist = new Map([[src, 0]]), done = new Set();
+  for (;;) {
+    let u = null, best = Infinity;
+    for (const [k, v] of dist) if (!done.has(k) && v < best) { best = v; u = k; }
+    if (u === null) return dist;
+    done.add(u);
+    for (const [v, c] of (adj.get(u) || [])) {
+      const nd = best + c;
+      if (!dist.has(v) || nd < dist.get(v)) dist.set(v, nd);
+    }
+  }
+}
+
+function computeRoute() {
+  if (!D || !start) return { status: "none" };
+  if (bN.has(start)) return { status: "startBlocked" };
+
+  // Build adjacency: exclude blocked nodes, blocked edges, closed exits (never as intermediate)
+  const adj = new Map(D.nodes.map(n => [n.id, []]));
+  D.edges.forEach(e => {
+    if (bE.has(e.id)) return;
+    if (bN.has(e.from) || bN.has(e.to)) return;
+    if (cX.has(e.from) || cX.has(e.to)) return;
+    adj.get(e.from).push([e.to, e.cost]);
+    adj.get(e.to).push([e.from, e.cost]);
+  });
+
+  const dS = dijkstra(adj, start);
+
+  // Pick the open exit with minimum cost; break ties by lex-smallest exit id
+  let best = null;
+  D.nodes
+    .filter(n => n.type === "exit" && !cX.has(n.id) && dS.has(n.id))
+    .forEach(n => {
+      const c = dS.get(n.id);
+      if (!best || c < best.c || (c === best.c && n.id < best.id))
+        best = { id: n.id, c };
+    });
+
+  if (!best) return { status: "noRoute" };
+
+  // Reconstruct lex-smallest node-sequence path from start to best exit.
+  // Run Dijkstra backward from the exit, then greedily pick the lex-smallest
+  // neighbor at each step that lies on a shortest path.
+  const dE = dijkstra(adj, best.id);
+  const path = [start];
+  let cur = start;
+  const MAX_STEPS = D.nodes.length + 1;
+  let steps = 0;
+  while (cur !== best.id && steps++ < MAX_STEPS) {
+    const candidates = (adj.get(cur) || [])
+      .filter(([v, c]) => dE.has(v) && c + dE.get(v) === dE.get(cur))
+      .map(([v]) => v)
+      .sort();
+    if (candidates.length === 0) return { status: "noRoute" }; // defensive
+    const nx = candidates[0];
+    path.push(nx);
+    cur = nx;
+  }
+  return { status: "ok", exit: best.id, cost: best.c, path };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SVG MAP
+   ═══════════════════════════════════════════════════════════════════════════ */
+const els = { nodes: new Map(), edges: new Map() };
+
+function buildMap() {
+  const svg = $("map");
+  svg.innerHTML = "";
+  els.nodes.clear();
+  els.edges.clear();
+
+  const xs  = D.nodes.map(n => n.x), ys = D.nodes.map(n => n.y);
+  const pad = 64;
+  const x0  = Math.min(...xs), y0 = Math.min(...ys);
+  const rw  = Math.max(...xs) - x0 || 1;
+  const rh  = Math.max(...ys) - y0 || 1;
+  const s   = Math.min(780/rw, 440/rh, 2.5);
+  const W   = rw*s + pad*2, H = rh*s + pad*2;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+  const P     = n => [(n.x - x0)*s + pad, (n.y - y0)*s + pad];
+  const byId  = new Map(D.nodes.map(n => [n.id, n]));
+  const mk    = (tag, attrs, parent) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(el);
+    return el;
+  };
+
+  const gEdges = mk("g", {}, svg);
+  const gNodes = mk("g", {}, svg);
+
+  // Draw edges
+  D.edges.forEach(e => {
+    const [a, b] = [P(byId.get(e.from)), P(byId.get(e.to))];
+    const g = mk("g", { class:"edge" }, gEdges);
+    mk("line", { class:"vis", x1:a[0], y1:a[1], x2:b[0], y2:b[1] }, g);
+    const mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+    const lbl = String(e.cost);
+    const tw  = lbl.length * 7 + 12;
+    mk("rect",  { class:"cost-bg", x:mx-tw/2, y:my-9, width:tw, height:18, rx:5 }, g);
+    mk("text",  { x:mx, y:my }, g).textContent = lbl;
+    const hit = mk("line", { class:"hit", x1:a[0], y1:a[1], x2:b[0], y2:b[1] }, g);
+    hit.addEventListener("click", () => { if (mode === "haz") { toggle(bE, e.id); runUpdate(); } });
+    mk("title", {}, g).textContent = `${e.id}: ${e.from}–${e.to} (cost ${e.cost})`;
+    els.edges.set(e.id, g);
+  });
+
+  // Draw nodes
+  D.nodes.forEach(n => {
+    const [x, y] = P(n);
+    const g = mk("g", { class:`node ${n.type}`, tabindex:"0", role:"button", "aria-label":n.label }, gNodes);
+
+    if (n.type === "exit") {
+      mk("rect",  { x:x-18, y:y-18, width:36, height:36, rx:8 }, g);
+    } else {
+      mk("circle", { cx:x, cy:y, r:18 }, g);
+    }
+
+    // ID inside the node
+    mk("text", { class:"id-text", x, y }, g).textContent = n.id;
+    // Label below the node
+    mk("text", { class:"label-text", x, y:y+30 }, g).textContent = n.label;
+    mk("title", {}, g).textContent = `${n.id} (${n.type}): ${n.label}`;
+
+    const act = () => {
+      // Pulse animation
+      g.classList.remove("pulse");
+      void g.getBoundingClientRect();
+      g.classList.add("pulse");
+      if (mode === "haz") {
+        toggle(n.type === "exit" ? cX : bN, n.id);
+      } else {
+        if (n.type !== "exit") start = n.id;
+      }
+      runUpdate();
+    };
+    g.addEventListener("click", act);
+    g.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); act(); }
+    });
+    els.nodes.set(n.id, g);
+  });
+}
+
+function toggle(set, id) {
+  set.has(id) ? set.delete(id) : set.add(id);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UPDATE — recalculate route and refresh UI
+   ═══════════════════════════════════════════════════════════════════════════ */
+function runUpdate() {
+  const r = computeRoute();
+  const onPath = new Set(r.path || []);
+  const pathEdges = new Set();
+  if (r.path) {
+    for (let i = 0; i < r.path.length - 1; i++) {
+      pathEdges.add([r.path[i], r.path[i+1]].sort().join("|"));
+    }
+  }
+
+  D.edges.forEach(e => {
+    const g = els.edges.get(e.id);
+    const isBlocked = bE.has(e.id) || bN.has(e.from) || bN.has(e.to);
+    const isRoute   = pathEdges.has([e.from, e.to].sort().join("|"));
+    g.classList.toggle("blocked", isBlocked);
+    g.classList.toggle("route",   isRoute && !isBlocked);
+  });
+
+  D.nodes.forEach(n => {
+    const g = els.nodes.get(n.id);
+    g.classList.toggle("blocked", bN.has(n.id));
+    g.classList.toggle("closed",  cX.has(n.id));
+    g.classList.toggle("start",   n.id === start);
+    g.classList.toggle("onroute", onPath.has(n.id));
+  });
+
+  renderResult(r);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RENDER RESULT PANEL
+   ═══════════════════════════════════════════════════════════════════════════ */
+function renderResult(r) {
+  const el = $("res");
+  if (r.status === "ok") {
+    const pathHTML = r.path.map((p, i) => {
+      const cls = p === start ? "is-start" : (i === r.path.length-1 ? "is-exit" : "");
+      return `<span class="step ${cls}">${esc(p)}</span>${i < r.path.length-1 ? '<span class="arrow">→</span>' : ""}`;
+    }).join("");
+    el.innerHTML = `<div class="res-inner ok">
+      <div class="exit-badge">✓ ${esc(t("exitL"))}: ${esc(r.exit)}</div>
+      <div class="cost-label">${esc(t("cost"))}</div>
+      <div class="cost-display ok-color">${r.cost}</div>
+      <hr class="divider">
+      <div class="path-label">${esc(t("routeLabel"))}</div>
+      <div class="path">${pathHTML}</div>
+    </div>`;
+  } else {
+    const msg = r.status === "startBlocked" ? t("startBlocked")
+              : r.status === "noRoute"       ? t("noRoute")
+              : t("pick");
+    const cls = r.status === "none" ? "info" : "fail";
+    const msgCls = r.status === "none" ? "info-color" : "fail-color";
+    el.innerHTML = `<div class="res-inner ${cls}">
+      <div class="res-msg ${msgCls}">${esc(msg)}</div>
+    </div>`;
+  }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOADING
+   ═══════════════════════════════════════════════════════════════════════════ */
+function setErr(list) { lastErr = list; renderErr(); }
+function renderErr() {
+  const b = $("err");
+  if (!lastErr) { b.style.display = "none"; return; }
+  b.style.display = "block";
+  const lines = lastErr.map(([k, a]) => {
+    const v = t(k);
+    return "• " + (typeof v === "function" ? v(a) : v);
+  }).join("\n");
+  b.innerHTML = `<strong>${esc(t("errTitle"))}</strong>${esc(lines)}`;
+}
+
+function load(d) {
+  const errs = validate(d);
+  if (errs.length) { setErr(errs); return; }
+  setErr(null);
+  D = d;
+  start = null;
+  mode  = "start";
+  buildMap();
+  applyInitial();
+  renderText();
+}
+
+function applyInitial() {
+  const s = D.initial_state;
+  bN = new Set(s.blocked_nodes);
+  bE = new Set(s.blocked_edges);
+  cX = new Set(s.closed_exits);
+  runUpdate();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TEXT / I18N
+   ═══════════════════════════════════════════════════════════════════════════ */
+function renderText() {
+  document.documentElement.lang = lang === "bn" ? "bn" : "en";
+  $("t_sub").textContent    = t("sub");
+  $("t_import").textContent = t("imp");
+  $("t_sample").textContent = t("sample");
+  $("t_reset").textContent  = t("reset");
+  $("lang").textContent     = t("lang");
+  $("mStart").textContent   = t("mStart");
+  $("mHaz").textContent     = t("mHaz");
+  $("mStart").setAttribute("aria-pressed", String(mode === "start"));
+  $("mHaz").setAttribute("aria-pressed",   String(mode === "haz"));
+  $("tip").textContent      = mode === "start" ? t("tipStart") : t("tipHaz");
+  $("t_leg").textContent    = t("leg");
+  document.body.classList.toggle("haz-mode", mode === "haz");
+
+  const bn = $("bname");
+  if (D) {
+    bn.textContent = D.building;
+    bn.classList.add("visible");
+  } else {
+    bn.classList.remove("visible");
+  }
+
+  // Stats
+  const stats = $("stats");
+  if (D) {
+    stats.innerHTML =
+      `<span>📦 ${esc(t("nodes_count")(D.nodes.length))}</span>` +
+      `<span>🔗 ${esc(t("edges_count")(D.edges.length))}</span>`;
+  } else {
+    stats.innerHTML = "";
+  }
+
+  // Legend
+  const leg = $("leg");
+  const sw  = (color, extra) =>
+    `<span class="legend-swatch ${extra||""}" style="background:${color}" aria-hidden="true"></span>`;
+  leg.innerHTML = [
+    [sw("var(--room)"),  "room"],
+    [sw("var(--junc)"),  "junction"],
+    [sw("var(--exit)","square"), "exit"],
+    [sw("var(--bad)"),   "blockedN"],
+    [sw("var(--bad)","square"), "closedE"],
+    [sw("","dashed"),    "blockedC"],
+    [`<span class="legend-swatch" style="background:var(--route);border-radius:3px;height:.25rem;margin-top:.5rem" aria-hidden="true"></span>`, "route"],
+    [sw("","ring-start"), "start"],
+  ].map(([swatch, key]) =>
+    `<div class="legend-item" role="listitem">${swatch}<span>${esc(t(key))}</span></div>`
+  ).join("");
+
+  renderErr();
+  if (D) runUpdate();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THEME TOGGLE
+   ═══════════════════════════════════════════════════════════════════════════ */
+function initTheme() {
+  const saved = localStorage.getItem("se-theme");
+  if (saved) {
+    document.documentElement.setAttribute("data-theme", saved);
+    $("theme").textContent = saved === "dark" ? "☀️" : "🌙";
+  }
+}
+$("theme").addEventListener("click", () => {
+  const cur  = document.documentElement.getAttribute("data-theme");
+  const pref = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // Cycle: "" → opposite of system → system → ""
+  let next;
+  if (cur === "dark")  next = "light";
+  else if (cur === "light") next = "";
+  else next = pref === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("se-theme", next);
+  $("theme").textContent = (next === "dark" || (next === "" && pref === "dark")) ? "☀️" : "🌙";
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVENT HANDLERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+$("file").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try { load(JSON.parse(await f.text())); }
+  catch { setErr([["bad_json"]]); }
+  e.target.value = "";
+});
+
+// Make the label keyboard-accessible (Enter / Space triggers the hidden input)
+$("importLabel").addEventListener("keydown", ev => {
+  if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("file").click(); }
+});
+
+$("sample").addEventListener("click", () => load(structuredClone(SAMPLE)));
+$("reset").addEventListener("click",  () => { if (D) applyInitial(); });
+$("lang").addEventListener("click",   () => { lang = lang === "en" ? "bn" : "en"; renderText(); });
+$("mStart").addEventListener("click", () => { mode = "start"; renderText(); });
+$("mHaz").addEventListener("click",   () => { mode = "haz";   renderText(); });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOOT
+   ═══════════════════════════════════════════════════════════════════════════ */
+initTheme();
+load(structuredClone(SAMPLE));
+</script>
+</body>
+</html>
